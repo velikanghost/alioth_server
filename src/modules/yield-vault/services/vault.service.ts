@@ -1001,9 +1001,9 @@ export class VaultService {
 
   // Contract addresses (from YIELDOPTIMIZER_GUIDE.md)
   private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0x3aC2C3246CD80681da236F9FcB67A71DBBD2132d';
+    '0xe1B925801114A148785F35AEBF8F112E3ed00F01';
   private readonly AAVE_ADAPTER_ADDRESS =
-    '0x39749D38068685E26A440dD1CA1db88290c492E7';
+    '0x604D42BFcf61F489a188f372741138AE3E154dC8';
 
   constructor(
     @InjectModel(UserVault.name)
@@ -1405,9 +1405,9 @@ export class VaultService {
         this.logger.log(`✅ Token approval transaction executed: ${txHash}`);
         return txHash;
       } catch (walletError) {
-        // Fallback to simulation if wallet client is not available
+        // Fallback to simulation if transaction fails
         this.logger.warn(
-          `⚠️ Wallet client not available for approval, using simulation: ${walletError.message}`,
+          `⚠️ Token approval transaction failed, using simulation: ${walletError.message}`,
         );
 
         const txHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2).padStart(40, '0')}`;
@@ -1505,9 +1505,9 @@ export class VaultService {
 
         this.logger.log(`✅ Real deposit transaction executed: ${txHash}`);
       } catch (walletError) {
-        // Fallback to simulation if wallet client is not available
+        // Fallback to simulation if transaction fails
         this.logger.warn(
-          `⚠️ Wallet client not available, using simulation: ${walletError.message}`,
+          `⚠️ Deposit transaction failed, using simulation: ${walletError.message}`,
         );
 
         txHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2).padStart(40, '0')}`;
@@ -1573,9 +1573,9 @@ export class VaultService {
 
         this.logger.log(`✅ Real withdrawal transaction executed: ${txHash}`);
       } catch (walletError) {
-        // Fallback to simulation if wallet client is not available
+        // Fallback to simulation if transaction fails
         this.logger.warn(
-          `⚠️ Wallet client not available, using simulation: ${walletError.message}`,
+          `⚠️ Withdrawal transaction failed, using simulation: ${walletError.message}`,
         );
 
         txHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2).padStart(40, '0')}`;
