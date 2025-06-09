@@ -1,0 +1,61 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import configuration from './config/configuration';
+import { DatabaseModule } from './shared/database/database.module';
+import { RedisModule } from './shared/redis/redis.module';
+import { Web3Module } from './shared/web3/web3.module';
+import { SharedModule } from './shared/shared.module';
+import { YieldVaultModule } from './modules/yield-vault/yield-vault.module';
+import { AIOptimizationModule } from './modules/ai-optimization/ai-optimization.module';
+import { MarketAnalysisModule } from './modules/market-analysis/market-analysis.module';
+import { SwapExecutionModule } from './modules/swap-execution/swap-execution.module';
+import { PerformanceTrackingModule } from './modules/performance-tracking/performance-tracking.module';
+
+@Module({
+  imports: [
+    // Configuration
+    ConfigModule.forRoot({
+      load: [configuration],
+      isGlobal: true,
+      cache: true,
+    }),
+
+    // Rate limiting
+    ThrottlerModule.forRootAsync({
+      useFactory: () => ({
+        throttlers: [
+          {
+            ttl: 60000, // 1 minute
+            limit: 10,
+          },
+        ],
+      }),
+    }),
+
+    // Infrastructure modules
+    DatabaseModule,
+    RedisModule,
+    Web3Module,
+    SharedModule,
+
+    // Feature modules
+    YieldVaultModule,
+
+    // AI Integration modules
+    AIOptimizationModule,
+    MarketAnalysisModule,
+    SwapExecutionModule,
+    PerformanceTrackingModule,
+
+    // AuthModule, - TODO: Complete authentication module
+    // CrossChainLendingModule, - TODO: Implement cross-chain lending
+    // AgentsModule, - TODO: Create agents module wrapper
+    // NotificationsModule, - TODO: Implement notifications
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}

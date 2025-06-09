@@ -1,0 +1,364 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 🎯 Alioth Backend - Yield Optimizer Development Process
+
+> **MILESTONE 1 PRIORITY**: Yield Optimizer is our primary target for launch
+
+---
+
+## 🏆 Project Overview
+
+**Alioth Yield Optimizer** - AI-driven cross-chain DeFi vault that automatically maximizes yield by continuously rebalancing across the highest APR protocols.
+
+### 🎨 Architecture Vision
+
+```mermaid
+graph TB
+    A[User Deposits] --> B[Yield Vault]
+    B --> C[Strategy Manager]
+    C --> D[Aave Strategy]
+    C --> E[Compound Strategy]
+    C --> F[Curve Strategy]
+    C --> G[Yearn Strategy]
+    
+    H[AI Agent] --> I[APR Monitor]
+    H --> J[Rebalance Engine]
+    H --> K[Risk Assessment]
+    
+    I --> C
+    J --> C
+    K --> C
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style H fill:#fff3e0
+```
+
+---
+
+## 📊 Current Infrastructure Status
+
+### ✅ **Ready Components**
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| **Web3Service** | ✅ Complete | Multi-chain provider management (4 chains) |
+| **Database** | ✅ Complete | MongoDB with Mongoose ODM |
+| **Redis** | ✅ Complete | Caching + Bull queue system |
+| **Config** | ✅ Complete | Environment-based configuration |
+| **API Base** | ✅ Complete | NestJS + Swagger + Validation |
+| **Authentication** | ✅ Ready | JWT + Passport infrastructure |
+
+### 🏗️ **Module Structure**
+
+```
+src/modules/yield-vault/
+├── 📁 dto/          # ❌ Empty - Needs DTOs
+├── 📁 schemas/      # ❌ Empty - Needs Mongoose schemas  
+├── 📁 controllers/  # ❌ Missing - Needs API endpoints
+├── 📁 services/     # ❌ Missing - Needs business logic
+└── 📁 strategies/   # ❌ Missing - Needs protocol integrations
+```
+
+---
+
+## 🚧 Implementation Roadmap
+
+### 🎯 **Phase 1: Core Infrastructure** `[Week 1-2]`
+
+#### **Step 1.1: Database Schemas** 
+> Create MongoDB schemas for vault data
+
+**Files to Create:**
+- `src/modules/yield-vault/schemas/user.schema.ts`
+- `src/modules/yield-vault/schemas/vault.schema.ts` 
+- `src/modules/yield-vault/schemas/apr-snapshot.schema.ts`
+- `src/modules/yield-vault/schemas/transaction.schema.ts`
+
+**Key Schema Requirements:**
+```typescript
+// User Schema
+{
+  address: string          // Wallet address
+  vaultBalances: Map       // chain -> balance mapping
+  totalYieldEarned: number // Lifetime yield
+  riskProfile: enum        // Conservative/Moderate/Aggressive
+}
+
+// Vault Schema  
+{
+  chainId: number         // 1, 137, 250, 43114
+  totalValueLocked: number
+  currentAPR: number
+  activeStrategies: Strategy[]
+  lastRebalanceAt: Date
+}
+```
+
+#### **Step 1.2: Core Services**
+> Implement business logic services
+
+**Files to Create:**
+- `src/modules/yield-vault/services/vault.service.ts`
+- `src/modules/yield-vault/services/apr-tracking.service.ts`
+- `src/modules/yield-vault/services/strategy.service.ts`
+- `src/modules/yield-vault/services/rebalance.service.ts`
+
+#### **Step 1.3: API Controllers**
+> Create REST endpoints
+
+**Files to Create:**
+- `src/modules/yield-vault/controllers/vault.controller.ts`
+
+**Required Endpoints:**
+```typescript
+POST   /api/v1/yield-vault/deposit     // User deposits
+POST   /api/v1/yield-vault/withdraw    // User withdrawals
+GET    /api/v1/yield-vault/balance/:address  // User balance
+GET    /api/v1/yield-vault/apr-history      // Historical APR
+GET    /api/v1/yield-vault/strategies       // Available strategies
+GET    /api/v1/yield-vault/performance     // Vault performance
+```
+
+### 🔗 **Phase 2: Protocol Integrations** `[Week 2-3]`
+
+#### **Step 2.1: Strategy Framework**
+> Build base strategy system
+
+**Files to Create:**
+- `src/modules/yield-vault/strategies/base.strategy.ts`
+- `src/modules/yield-vault/strategies/aave.strategy.ts`
+- `src/modules/yield-vault/strategies/compound.strategy.ts`
+
+**Strategy Interface:**
+```typescript
+interface IStrategy {
+  deposit(amount: bigint): Promise<TransactionReceipt>
+  withdraw(amount: bigint): Promise<TransactionReceipt>
+  getBalance(): Promise<bigint>
+  getCurrentAPR(): Promise<number>
+  compound(): Promise<TransactionReceipt>
+  estimateGas(action: string): Promise<bigint>
+}
+```
+
+#### **Step 2.2: Multi-Chain Protocol Support**
+
+| Chain | Primary Protocols | Target APR Sources |
+|-------|------------------|-------------------|
+| **Ethereum** | Aave, Compound, Curve, Yearn | 3-8% APR |
+| **Avalanche** | Aave, TraderJoe, Benqi | 5-12% APR |
+| **Fantom** | SpookySwap, Reaper, Beefy | 8-15% APR |
+| **Polygon** | Aave, QuickSwap, Mai Finance | 4-10% APR |
+
+### 🤖 **Phase 3: AI Agent Integration** `[Week 3-4]`
+
+#### **Step 3.1: Yield Monitoring Agent**
+> AI agent for APR tracking and optimization
+
+**Files to Create:**
+- `src/modules/agents/services/yield-monitoring.agent.ts`
+- `src/modules/agents/services/rebalance.agent.ts`
+
+**Agent Capabilities:**
+```typescript
+YieldMonitoringAgent {
+  // 🔄 Continuous APR monitoring (every 15 minutes)
+  trackAPRsAcrossProtocols(): Promise<APRSnapshot[]>
+  
+  // 🧠 AI-powered allocation optimization  
+  calculateOptimalAllocation(): Promise<AllocationPlan>
+  
+  // ⚡ Real-time rebalance triggers
+  identifyRebalanceOpportunities(): Promise<RebalanceAction[]>
+}
+```
+
+#### **Step 3.2: Execution Engine**
+> Automated rebalancing with safety checks
+
+**Features:**
+- **Gas Optimization**: Batch transactions for efficiency
+- **Slippage Protection**: MEV protection mechanisms  
+- **Safety Thresholds**: Maximum allocation limits per protocol
+- **Emergency Brakes**: Auto-pause on anomalous behavior
+
+### 🚀 **Phase 4: Production Features** `[Week 4-5]`
+
+#### **Step 4.1: Real-time Dashboard**
+> WebSocket-powered live updates
+
+**Files to Create:**
+- `src/modules/yield-vault/gateways/vault.gateway.ts`
+- `src/modules/notifications/services/notification.service.ts`
+
+**Real-time Features:**
+- Live APR updates across all protocols
+- Instant balance changes after deposits/withdrawals
+- Rebalancing progress notifications
+- Yield earning celebrations 🎉
+
+#### **Step 4.2: Advanced Risk Management**
+> Production-ready safety mechanisms
+
+**Safety Features:**
+- **Circuit Breakers**: Auto-pause on 5%+ protocol TVL drops
+- **Withdrawal Limits**: Max 10% daily withdrawals during volatility
+- **Protocol Health Monitoring**: Real-time protocol risk assessment
+- **Insurance Integration**: Nexus Mutual integration for coverage
+
+---
+
+## 📋 Development Checklist
+
+### **Phase 1 Tasks** ✅
+
+- [ ] **Database Setup**
+  - [ ] User schema with vault balances
+  - [ ] Vault schema with strategy tracking
+  - [ ] APR snapshot schema for historical data
+  - [ ] Transaction schema for audit trail
+
+- [ ] **Core Services**
+  - [ ] VaultService with deposit/withdraw logic
+  - [ ] APRTrackingService with real-time monitoring
+  - [ ] StrategyService with protocol abstractions
+  - [ ] RebalanceService with optimization algorithms
+
+- [ ] **API Layer**
+  - [ ] VaultController with all CRUD endpoints
+  - [ ] DTOs for request/response validation
+  - [ ] Swagger documentation for all endpoints
+  - [ ] Error handling and logging
+
+- [ ] **Testing Infrastructure**
+  - [ ] Unit tests for all services (80%+ coverage)
+  - [ ] Integration tests for API endpoints
+  - [ ] Mock contracts for protocol testing
+  - [ ] End-to-end user journey tests
+
+### **Phase 2 Tasks** 🔄
+
+- [ ] **Strategy Implementation**
+  - [ ] BaseStrategy abstract class
+  - [ ] AaveStrategy for all 4 chains
+  - [ ] CompoundStrategy (Ethereum focus)
+  - [ ] At least 1 additional protocol per chain
+
+- [ ] **Cross-Chain Features**
+  - [ ] Multi-chain balance aggregation
+  - [ ] Cross-chain rebalancing logic
+  - [ ] Gas optimization across chains
+  - [ ] Chain-specific strategy selection
+
+### **Phase 3 Tasks** ⏳
+
+- [ ] **AI Agent Development**
+  - [ ] APR monitoring with 15-minute intervals
+  - [ ] Optimal allocation algorithm
+  - [ ] Rebalance trigger mechanisms
+  - [ ] Risk assessment integration
+
+### **Phase 4 Tasks** 📅
+
+- [ ] **Production Readiness**
+  - [ ] WebSocket real-time updates
+  - [ ] Advanced risk management
+  - [ ] Performance optimization
+  - [ ] Security audit preparation
+
+---
+
+## 💻 Required Dependencies
+
+### **Protocol Integrations**
+```bash
+# DeFi Protocol SDKs
+pnpm add @aave/protocol-v3-contracts
+pnpm add @compound-finance/compound-js
+pnpm add @yearnfi/sdk
+
+# Cross-chain Infrastructure
+pnpm add @layerzerolabs/solidity-examples
+pnpm add @chainlink/contracts
+
+# Utilities
+pnpm add bignumber.js lodash moment
+pnpm add @types/lodash
+```
+
+### **Development Tools**
+```bash
+# Testing & Mocking
+pnpm add --dev hardhat @nomiclabs/hardhat-ethers
+pnpm add --dev @typechain/ethers-v5 typechain
+
+# Monitoring & Analytics
+pnpm add @sentry/node datadog-metrics
+```
+
+---
+
+## 🎯 Success Metrics & KPIs
+
+### **Technical Metrics**
+- [ ] **API Performance**: <200ms average response time
+- [ ] **Uptime**: 99.9% availability target
+- [ ] **Test Coverage**: >80% code coverage
+- [ ] **Gas Efficiency**: <30% gas overhead vs direct protocol interaction
+
+### **Business Metrics**  
+- [ ] **TVL Growth**: $100K TVL within first month
+- [ ] **User Acquisition**: 100+ unique depositors
+- [ ] **Yield Performance**: Consistently beat benchmark by 2%+
+- [ ] **User Retention**: 70%+ users stay for >30 days
+
+### **Product Metrics**
+- [ ] **Rebalance Frequency**: Optimal frequency finding (daily vs weekly)
+- [ ] **Strategy Distribution**: Balanced allocation across protocols
+- [ ] **Cross-Chain Adoption**: Users active on multiple chains
+- [ ] **AI Agent Performance**: Successful rebalance rate >95%
+
+---
+
+## 🔐 Security & Risk Management
+
+### **Smart Contract Security**
+- [ ] **Multi-sig Wallet**: 3/5 multi-sig for admin functions
+- [ ] **Timelock Controller**: 24-hour delay for critical changes
+- [ ] **Audit Requirements**: Full security audit before mainnet
+- [ ] **Bug Bounty**: $10K+ bug bounty program
+
+### **Backend Security**
+- [ ] **Rate Limiting**: API protection (10 req/min per IP)
+- [ ] **Input Validation**: Comprehensive request sanitization
+- [ ] **Access Controls**: Role-based admin permissions
+- [ ] **Monitoring**: Real-time security monitoring with alerts
+
+---
+
+## 🚀 Next Immediate Actions
+
+### **This Week Priority**
+1. 🔥 **Create database schemas** → Start with User and Vault schemas
+2. 🔥 **Implement VaultService** → Core deposit/withdraw logic  
+3. 🔥 **Set up APR tracking** → Connect to first protocol APIs
+4. 🔥 **Deploy test environment** → Testnet contracts for validation
+
+### **Week 2 Priority**
+1. 🎯 **Complete API endpoints** → Full CRUD operations
+2. 🎯 **Aave strategy implementation** → First working strategy
+3. 🎯 **Multi-chain testing** → Validate across all 4 chains
+4. 🎯 **Basic rebalancing logic** → Manual rebalance capability
+
+### **Success Definition**
+> **By end of Week 2**: Working yield vault with manual deposits, Aave integration, and basic rebalancing across 4 chains.
+
+---
+
+**💡 Remember**: Focus on getting the core vault functionality working first. AI agents and advanced features come after we have a solid, working foundation.
+
+**🎯 Target Launch**: Complete yield optimizer within 4-5 weeks with initial TVL target of $100K.
