@@ -198,44 +198,153 @@ export class VaultController {
     description: "Get user's vault balances across all chains and tokens",
   })
   @ApiParam({ name: 'address', description: 'User wallet address' })
+  @ApiQuery({
+    name: 'source',
+    required: false,
+    description: 'Data source: "database" (default) or "contract"',
+    enum: ['database', 'contract'],
+  })
+  @ApiQuery({
+    name: 'chainId',
+    required: false,
+    description: 'Chain ID (required when source=contract)',
+  })
   @ApiResponse({
     status: 200,
     description: 'User vault balance retrieved',
-    type: ApiResponseDto<UserVaultResponseDto>,
+    type: ApiResponseDto<UserVaultResponseDto | any>,
   })
   async getUserBalance(
     @Param('address') address: string,
-  ): Promise<ApiResponseDto<UserVaultResponseDto>> {
+    @Query('source') source: 'database' | 'contract' = 'database',
+    @Query('chainId') chainId?: string,
+  ): Promise<ApiResponseDto<UserVaultResponseDto | any>> {
     try {
-      const userVault = await this.vaultService.getUserVault(address);
+      if (source === 'contract') {
+        // Read directly from smart contract
+        const chainIdNum = chainId ? parseInt(chainId) : 11155111; // Default to Sepolia
+        const contractData =
+          await this.vaultService.getUserPortfolioFromContract(
+            address,
+            chainIdNum,
+          );
 
-      return ApiResponseDto.success(
-        {
-          userAddress: userVault.userAddress,
-          vaultBalances: userVault.vaultBalances.map((balance) => ({
-            ...balance,
-            currentAPY: 4.5, // Mock APY - would be calculated from current vault performance
-          })),
-          totalValueLocked: userVault.totalValueLocked,
-          totalYieldEarned: userVault.totalYieldEarned,
-          riskProfile: userVault.riskProfile,
-          statistics: userVault.statistics || {
-            totalTransactions: 0,
-            totalDeposits: 0,
-            totalWithdrawals: 0,
-            averageAPY: 0,
-            bestPerformingToken: '',
-            totalRebalances: 0,
-            lastActivityAt: new Date(),
+        return ApiResponseDto.success(
+          {
+            userAddress: address,
+            chainId: chainIdNum,
+            source: 'contract',
+            data: {
+              tokens: contractData.tokens,
+              receiptTokens: contractData.receiptTokens,
+              shares: contractData.shares,
+              values: contractData.values,
+              symbols: contractData.symbols,
+              apys: contractData.apys,
+            },
+            timestamp: new Date(),
           },
-        },
-        'User vault balance retrieved successfully',
-      );
+          'User vault balance retrieved from smart contract',
+        );
+      } else {
+        // Read from database (existing functionality)
+        const userVault = await this.vaultService.getUserVault(address);
+
+        return ApiResponseDto.success(
+          {
+            userAddress: userVault.userAddress,
+            source: 'database',
+            vaultBalances: userVault.vaultBalances.map((balance) => ({
+              ...balance,
+              currentAPY: 4.5, // Mock APY - would be calculated from current vault performance
+            })),
+            totalValueLocked: userVault.totalValueLocked,
+            totalYieldEarned: userVault.totalYieldEarned,
+            riskProfile: userVault.riskProfile,
+            statistics: userVault.statistics || {
+              totalTransactions: 0,
+              totalDeposits: 0,
+              totalWithdrawals: 0,
+              averageAPY: 0,
+              bestPerformingToken: '',
+              totalRebalances: 0,
+              lastActivityAt: new Date(),
+            },
+          },
+          'User vault balance retrieved from database',
+        );
+      }
     } catch (error) {
       this.logger.error('Failed to get user balance:', error);
       return ApiResponseDto.error(
         error.message,
         'Failed to retrieve user balance',
+      );
+    }
+  }
+
+  @Get('balance-contract/:address')
+  @ApiOperation({
+    summary: 'Get user vault balance from smart contract',
+    description:
+      "Get user's vault balances directly from the smart contract (real-time data)",
+  })
+  @ApiParam({ name: 'address', description: 'User wallet address' })
+  @ApiQuery({
+    name: 'chainId',
+    required: false,
+    description: 'Chain ID (default: 11155111 for Sepolia)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User vault balance retrieved from contract',
+    type: ApiResponseDto<any>,
+  })
+  async getUserBalanceFromContract(
+    @Param('address') address: string,
+    @Query('chainId') chainId?: string,
+  ): Promise<ApiResponseDto<any>> {
+    try {
+      const chainIdNum = chainId ? parseInt(chainId) : 11155111; // Default to Sepolia
+      const contractData = await this.vaultService.getUserPortfolioFromContract(
+        address,
+        chainIdNum,
+      );
+
+      // Transform the data into a more user-friendly format
+      const portfolioSummary = {
+        userAddress: address,
+        chainId: chainIdNum,
+        source: 'smart_contract',
+        timestamp: new Date(),
+        positions: contractData.tokens.map((token, index) => ({
+          tokenAddress: token,
+          receiptTokenAddress: contractData.receiptTokens[index],
+          tokenSymbol: contractData.symbols[index],
+          shares: contractData.shares[index],
+          estimatedValue: contractData.values[index],
+          currentAPY: contractData.apys[index],
+        })),
+        summary: {
+          totalPositions: contractData.tokens.length,
+          totalShares: contractData.shares.reduce((sum, shares) => {
+            return (BigInt(sum) + BigInt(shares || '0')).toString();
+          }, '0'),
+          totalEstimatedValue: contractData.values.reduce((sum, value) => {
+            return (BigInt(sum) + BigInt(value || '0')).toString();
+          }, '0'),
+        },
+      };
+
+      return ApiResponseDto.success(
+        portfolioSummary,
+        'User vault balance retrieved from smart contract',
+      );
+    } catch (error) {
+      this.logger.error('Failed to get user balance from contract:', error);
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to retrieve user balance from contract',
       );
     }
   }
@@ -564,6 +673,69 @@ export class VaultController {
       return ApiResponseDto.error(
         error.message,
         'Failed to retrieve transactions',
+      );
+    }
+  }
+
+  @Post('sync/:address')
+  @ApiOperation({
+    summary: 'Sync database with contract state',
+    description:
+      'Manually sync user vault database with actual smart contract state',
+  })
+  @ApiParam({ name: 'address', description: 'User wallet address' })
+  @ApiQuery({
+    name: 'chainId',
+    required: false,
+    description: 'Chain ID (default: 11155111 for Sepolia)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Database synced with contract state',
+    type: ApiResponseDto<UserVaultResponseDto>,
+  })
+  async syncUserVault(
+    @Param('address') address: string,
+    @Query('chainId') chainId?: string,
+  ): Promise<ApiResponseDto<UserVaultResponseDto>> {
+    try {
+      const chainIdNum = chainId ? parseInt(chainId) : 11155111;
+
+      this.logger.log(`Syncing vault for ${address} on chain ${chainIdNum}`);
+
+      const syncedVault = await this.vaultService.syncUserVaultWithContract(
+        address,
+        chainIdNum,
+      );
+
+      return ApiResponseDto.success(
+        {
+          userAddress: syncedVault.userAddress,
+          source: 'synced_from_contract',
+          vaultBalances: syncedVault.vaultBalances.map((balance) => ({
+            ...balance,
+            currentAPY: 4.5, // Mock APY
+          })),
+          totalValueLocked: syncedVault.totalValueLocked,
+          totalYieldEarned: syncedVault.totalYieldEarned,
+          riskProfile: syncedVault.riskProfile,
+          statistics: syncedVault.statistics || {
+            totalTransactions: 0,
+            totalDeposits: 0,
+            totalWithdrawals: 0,
+            averageAPY: 0,
+            bestPerformingToken: '',
+            totalRebalances: 0,
+            lastActivityAt: new Date(),
+          },
+        },
+        'Database successfully synced with smart contract state',
+      );
+    } catch (error) {
+      this.logger.error('Failed to sync user vault:', error);
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to sync user vault with contract state',
       );
     }
   }

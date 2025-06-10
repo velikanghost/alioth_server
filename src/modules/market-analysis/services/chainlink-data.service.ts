@@ -3,6 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import {
+  ChainlinkPriceFeedService,
+  PriceData,
+} from './chainlink-price-feed.service';
+import {
   MarketDataCache,
   MarketDataCacheDocument,
 } from '../../../modules/ai-optimization/schemas/market-data-cache.schema';
@@ -107,6 +111,7 @@ export class ChainlinkDataService {
     @InjectModel(MarketDataCache.name)
     private marketDataCacheModel: Model<MarketDataCacheDocument>,
     private configService: ConfigService,
+    private chainlinkPriceFeedService: ChainlinkPriceFeedService,
   ) {}
 
   async getMarketAnalysis(tokens: string[]): Promise<MarketAnalysis> {
@@ -361,15 +366,66 @@ export class ChainlinkDataService {
   }
 
   private async getTokenPrice(token: string): Promise<number> {
-    // Mock prices for Sepolia testnet - in production, use actual Chainlink feeds
+    try {
+      // Get chain ID from configuration (default to Sepolia testnet)
+      const chainId =
+        this.configService.get<number>('config.blockchain.chainId') || 11155111;
+
+      // Convert token address to symbol if needed
+      const symbol = this.getTokenSymbol(token);
+
+      // Check if price feed is available for this symbol and chain
+      if (
+        !this.chainlinkPriceFeedService.isPriceFeedAvailable(symbol, chainId)
+      ) {
+        this.logger.warn(
+          `❌ No Chainlink price feed available for ${symbol} on chain ${chainId}. Using fallback mock price.`,
+        );
+        return this.getMockPrice(symbol);
+      }
+
+      // Get price from Chainlink
+      const priceData: PriceData =
+        await this.chainlinkPriceFeedService.getTokenPriceUSD(symbol, chainId);
+
+      // Check if price data is stale and log warning
+      if (priceData.isStale) {
+        this.logger.warn(
+          `⚠️ Using stale Chainlink price for ${symbol}: $${priceData.price.toFixed(2)} (${priceData.staleness}s old)`,
+        );
+      } else {
+        this.logger.log(
+          `✅ Fresh Chainlink price for ${symbol}: $${priceData.price.toFixed(2)} (${priceData.staleness}s old)`,
+        );
+      }
+
+      return priceData.price;
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to get Chainlink price for ${token}: ${error.message}. Using fallback mock price.`,
+      );
+      // Fallback to mock prices if Chainlink fails
+      const symbol = this.getTokenSymbol(token);
+      return this.getMockPrice(symbol);
+    }
+  }
+
+  /**
+   * Fallback mock prices for when Chainlink data is unavailable
+   */
+  private getMockPrice(symbol: string): number {
+    // Mock prices for Sepolia testnet - use as fallback only
     const mockPrices: Record<string, number> = {
       AAVE: 85.5,
       WETH: 2300.0,
+      ETH: 2300.0,
       WBTC: 42000.0,
+      BTC: 42000.0,
       LINK: 12.5,
+      USDC: 1.0,
+      USDT: 1.0,
     };
 
-    const symbol = this.getTokenSymbol(token);
     return mockPrices[symbol] || 1.0;
   }
 
@@ -591,5 +647,126 @@ export class ChainlinkDataService {
         { upsert: true },
       )
       .exec();
+  }
+
+  /**
+   * Get multiple token prices efficiently using Chainlink
+   */
+  async getMultipleTokenPrices(
+    tokens: string[],
+  ): Promise<Record<string, number>> {
+    try {
+      const chainId =
+        this.configService.get<number>('config.blockchain.chainId') || 11155111;
+
+      // Convert token addresses to symbols
+      const symbols = tokens.map((token) => this.getTokenSymbol(token));
+
+      this.logger.log(
+        `🔗 Fetching Chainlink prices for ${symbols.length} tokens: ${symbols.join(', ')}`,
+      );
+
+      // Get prices from Chainlink
+      const priceDataMap =
+        await this.chainlinkPriceFeedService.getMultipleTokenPrices(
+          symbols,
+          chainId,
+        );
+
+      // Convert PriceData objects to simple number prices
+      const priceMap: Record<string, number> = {};
+
+      symbols.forEach((symbol) => {
+        const priceData = priceDataMap[symbol];
+        if (priceData) {
+          priceMap[symbol] = priceData.price;
+
+          if (priceData.isStale) {
+            this.logger.warn(
+              `⚠️ Stale price for ${symbol}: $${priceData.price.toFixed(2)} (${priceData.staleness}s old)`,
+            );
+          }
+        } else {
+          // Use fallback price
+          const fallbackPrice = this.getMockPrice(symbol);
+          priceMap[symbol] = fallbackPrice;
+          this.logger.warn(
+            `❌ No Chainlink price for ${symbol}, using fallback: $${fallbackPrice.toFixed(2)}`,
+          );
+        }
+      });
+
+      return priceMap;
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to get multiple token prices: ${error.message}`,
+      );
+
+      // Fallback to individual mock prices
+      const priceMap: Record<string, number> = {};
+      const symbols = tokens.map((token) => this.getTokenSymbol(token));
+
+      symbols.forEach((symbol) => {
+        priceMap[symbol] = this.getMockPrice(symbol);
+      });
+
+      return priceMap;
+    }
+  }
+
+  /**
+   * Validate price against Chainlink feeds with deviation threshold
+   */
+  async validateTokenPrice(
+    symbol: string,
+    expectedPrice: number,
+    deviationThreshold: number = 0.05, // 5% default
+  ): Promise<{
+    isValid: boolean;
+    deviation: number;
+    chainlinkPrice: number;
+    warnings: string[];
+  }> {
+    try {
+      const chainId =
+        this.configService.get<number>('config.blockchain.chainId') || 11155111;
+
+      const validationResult =
+        await this.chainlinkPriceFeedService.validatePriceData(
+          symbol,
+          expectedPrice,
+          chainId,
+        );
+
+      const deviation =
+        Math.abs(expectedPrice - validationResult.price) /
+        validationResult.price;
+      const isValid =
+        validationResult.isValid && deviation <= deviationThreshold;
+
+      const warnings = [...validationResult.warnings];
+      if (deviation > deviationThreshold) {
+        warnings.push(
+          `Price deviation ${(deviation * 100).toFixed(2)}% exceeds threshold ${(deviationThreshold * 100).toFixed(2)}%`,
+        );
+      }
+
+      return {
+        isValid,
+        deviation,
+        chainlinkPrice: validationResult.price,
+        warnings,
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Price validation failed for ${symbol}: ${error.message}`,
+      );
+      return {
+        isValid: false,
+        deviation: 1.0, // 100% deviation indicates failure
+        chainlinkPrice: 0,
+        warnings: [`Validation failed: ${error.message}`],
+      };
+    }
   }
 }

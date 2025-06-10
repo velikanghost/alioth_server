@@ -17,6 +17,7 @@ import {
   TransactionStatus,
 } from '../schemas/transaction.schema';
 import { DepositDto, WithdrawDto, UserPreferencesDto } from '../dto/vault.dto';
+import { ChainlinkDataService } from '../../market-analysis/services/chainlink-data.service';
 
 // YieldOptimizer contract ABI (complete)
 const MULTI_ASSET_VAULT_V2_ABI = [
@@ -1012,7 +1013,104 @@ export class VaultService {
     @InjectModel(Transaction.name)
     private transactionModel: Model<TransactionDocument>,
     private web3Service: Web3Service,
+    private chainlinkDataService: ChainlinkDataService,
   ) {}
+
+  private async getTokenPriceUSD(tokenAddress: string): Promise<number> {
+    try {
+      // Get the token symbol first
+      const tokenSymbol = await this.getTokenSymbol(tokenAddress, 11155111);
+
+      this.logger.log(
+        `Getting Chainlink price for ${tokenSymbol} (${tokenAddress})`,
+      );
+
+      // Use ChainlinkDataService to get real token price directly
+      const chainId = 11155111; // Sepolia testnet
+
+      // Try to get price using the multiple token prices method for efficiency
+      const priceMap = await this.chainlinkDataService.getMultipleTokenPrices([
+        tokenSymbol,
+      ]);
+
+      if (priceMap[tokenSymbol]) {
+        const price = priceMap[tokenSymbol];
+        this.logger.log(
+          `✅ Got Chainlink price for ${tokenSymbol}: $${price.toFixed(2)}`,
+        );
+        return price;
+      }
+
+      // Ultimate fallback to mock price
+      this.logger.error(
+        `❌ No Chainlink price available for ${tokenSymbol}, using mock price`,
+      );
+      return this.getMockTokenPrice(tokenSymbol);
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to get token price for ${tokenAddress}: ${error.message}`,
+      );
+
+      // Get symbol for fallback
+      const tokenSymbol = await this.getTokenSymbol(tokenAddress, 11155111);
+      const mockPrice = this.getMockTokenPrice(tokenSymbol);
+
+      this.logger.warn(`Using mock price for ${tokenSymbol}: $${mockPrice}`);
+      return mockPrice;
+    }
+  }
+
+  /**
+   * Get mock prices as fallback when Chainlink is unavailable
+   */
+  private getMockTokenPrice(symbol: string): number {
+    const mockPrices: Record<string, number> = {
+      LINK: 12.5,
+      AAVE: 85.5,
+      WETH: 2300.0,
+      ETH: 2300.0,
+      WBTC: 42000.0,
+      BTC: 42000.0,
+      USDC: 1.0,
+      USDT: 1.0,
+    };
+
+    return mockPrices[symbol.toUpperCase()] || 1.0;
+  }
+
+  /**
+   * Get token decimals from contract
+   */
+  private async getTokenDecimals(
+    tokenAddress: string,
+    chainId: number,
+  ): Promise<number> {
+    try {
+      const chainName = this.getChainName(chainId);
+      const publicClient = this.web3Service.getClient(chainName);
+
+      const decimals = await publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: [
+          {
+            inputs: [],
+            name: 'decimals',
+            outputs: [{ internalType: 'uint8', name: '', type: 'uint8' }],
+            stateMutability: 'view',
+            type: 'function',
+          },
+        ],
+        functionName: 'decimals',
+      });
+
+      return Number(decimals);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to get decimals for ${tokenAddress}, using default 18: ${error.message}`,
+      );
+      return 18; // Default to 18 decimals
+    }
+  }
 
   async deposit(
     userAddress: string,
@@ -1022,12 +1120,41 @@ export class VaultService {
       `Processing deposit for user ${userAddress}: ${depositDto.amount} of ${depositDto.tokenAddress}`,
     );
 
+    let transaction: any;
+
     try {
       // 1. Validate inputs
       await this.validateDeposit(depositDto);
 
-      // 2. Create transaction record
-      const transaction = new this.transactionModel({
+      // 2. Get user's current shares (before deposit)
+      const sharesBefore = await this.getUserShares(
+        userAddress,
+        depositDto.tokenAddress,
+        depositDto.chainId,
+      );
+
+      // 3. Calculate USD value using real Chainlink price and dynamic decimals
+      const tokenPriceUSD = await this.getTokenPriceUSD(
+        depositDto.tokenAddress,
+      );
+
+      // Get token decimals for accurate calculation
+      const tokenDecimals = await this.getTokenDecimals(
+        depositDto.tokenAddress,
+        depositDto.chainId,
+      );
+
+      // Convert amount to decimal using actual token decimals
+      const tokenAmount =
+        parseFloat(depositDto.amount) / Math.pow(10, tokenDecimals);
+      const amountUSD = tokenAmount * tokenPriceUSD;
+
+      this.logger.log(
+        `💰 Price calculation: ${tokenAmount.toFixed(6)} tokens × $${tokenPriceUSD.toFixed(2)} = $${amountUSD.toFixed(2)} USD`,
+      );
+
+      // 4. Create transaction record
+      transaction = new this.transactionModel({
         userAddress,
         chainId: depositDto.chainId,
         type: TransactionType.DEPOSIT,
@@ -1037,73 +1164,91 @@ export class VaultService {
           depositDto.chainId,
         ),
         amount: depositDto.amount,
+        amountUSD,
         status: TransactionStatus.PENDING,
         timestamp: new Date(),
         initiatedBy: 'user',
+        shares: {
+          sharesBefore,
+          sharesAfter: sharesBefore, // Will update after confirmation
+          sharesDelta: '0', // Will update after confirmation
+        },
       });
 
       await transaction.save();
+      this.logger.log(`Created transaction record: ${transaction._id}`);
 
-      // 3. Get user's current shares (before deposit)
-      const sharesBefore = await this.getUserShares(
+      // 5. Execute deposit on smart contract
+      const executionResult = await this.executeDeposit(
         userAddress,
-        depositDto.tokenAddress,
-        depositDto.chainId,
+        depositDto,
       );
 
-      // 4. Execute deposit on smart contract
-      const txHash = await this.executeDeposit(userAddress, depositDto);
+      // 6. Wait for transaction confirmation using viem
+      this.logger.log(`Transaction submitted: ${executionResult}`);
+      const chainName = this.getChainName(depositDto.chainId);
+      const publicClient = this.web3Service.getClient(chainName);
 
-      // 5. Update transaction with tx hash
-      transaction.txHash = txHash;
-      transaction.status = TransactionStatus.CONFIRMED;
-      transaction.confirmedAt = new Date();
+      // Wait for transaction receipt
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: executionResult as `0x${string}`,
+        timeout: 60000, // 60 second timeout
+      });
 
-      // 6. Get user's shares after deposit
+      if (receipt.status !== 'success') {
+        throw new Error(`Transaction failed with status: ${receipt.status}`);
+      }
+
+      this.logger.log(
+        `✅ Transaction confirmed in block ${receipt.blockNumber}`,
+      );
+
+      // 7. Get updated shares from contract after confirmation
       const sharesAfter = await this.getUserShares(
         userAddress,
         depositDto.tokenAddress,
         depositDto.chainId,
       );
+
       const sharesDelta = (
         BigInt(sharesAfter) - BigInt(sharesBefore)
       ).toString();
 
+      // 8. Update transaction with confirmed data
+      transaction.txHash = executionResult;
+      transaction.status = TransactionStatus.CONFIRMED;
+      transaction.confirmedAt = new Date();
+      transaction.gasUsed = Number(receipt.gasUsed); // Real gas usage from receipt
       transaction.shares = {
         sharesBefore,
         sharesAfter,
         sharesDelta,
       };
 
+      this.logger.log(
+        `✅ Deposit confirmed: ${sharesBefore} -> ${sharesAfter} shares (+${sharesDelta}), Gas: ${receipt.gasUsed}`,
+      );
+
       await transaction.save();
 
-      // 7. Update user vault record
+      // 7. Update user vault record with new shares
       await this.updateUserVault(
         userAddress,
         depositDto,
-        sharesDelta,
+        transaction.shares.sharesDelta,
         'deposit',
       );
 
       // 8. Update vault statistics
       await this.updateVaultStats(depositDto.tokenAddress, depositDto.chainId);
 
-      this.logger.log(`Deposit successful: ${txHash}`);
+      this.logger.log(`✅ Deposit process completed: ${transaction.txHash}`);
       return transaction;
     } catch (error) {
-      this.logger.error(`Deposit failed for user ${userAddress}:`, error);
+      this.logger.error(`❌ Deposit failed for user ${userAddress}:`, error);
 
-      // Update transaction status to failed
-      const transaction = await this.transactionModel
-        .findOne({
-          userAddress,
-          tokenAddress: depositDto.tokenAddress,
-          type: TransactionType.DEPOSIT,
-          status: TransactionStatus.PENDING,
-        })
-        .sort({ timestamp: -1 });
-
-      if (transaction) {
+      // Update transaction status to failed if transaction was created
+      if (transaction && transaction._id) {
         transaction.status = TransactionStatus.FAILED;
         transaction.error = {
           message: error.message,
@@ -1654,6 +1799,8 @@ export class VaultService {
       '0x29f2D40B0605204364af54EC677bD022dA425d03': 'WBTC',
       '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0': 'USDT',
       '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14': 'WETH',
+      '0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c': 'ETH',
+      '0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5': 'LINK', // Add the LINK token
     };
 
     return tokenSymbols[tokenAddress] || 'UNKNOWN';
@@ -1862,6 +2009,103 @@ export class VaultService {
       this.logger.warn(`Token approval check failed: ${error.message}`);
       // Don't throw error for other failures - proceed with transaction and let contract handle approval
       this.logger.log(`Proceeding with deposit despite approval check failure`);
+    }
+  }
+
+  async syncUserVaultWithContract(
+    userAddress: string,
+    chainId: number = 11155111,
+  ): Promise<UserVault> {
+    this.logger.log(
+      `🔄 Syncing database with contract state for ${userAddress} on chain ${chainId}`,
+    );
+
+    try {
+      // Get current contract state
+      const contractData = await this.getUserPortfolioFromContract(
+        userAddress,
+        chainId,
+      );
+
+      // Get or create user vault
+      let userVault = await this.userVaultModel.findOne({ userAddress });
+      if (!userVault) {
+        userVault = new this.userVaultModel({
+          userAddress,
+          vaultBalances: [],
+          totalValueLocked: 0,
+          totalYieldEarned: 0,
+        });
+      }
+
+      // Update vault balances with contract data
+      for (let i = 0; i < contractData.tokens.length; i++) {
+        const tokenAddress = contractData.tokens[i];
+        const shares = contractData.shares[i];
+        const estimatedValue = contractData.values[i];
+        const tokenSymbol = contractData.symbols[i];
+
+        // Find existing balance or create new one
+        let vaultBalance = userVault.vaultBalances.find(
+          (b) => b.tokenAddress === tokenAddress && b.chainId === chainId,
+        );
+
+        if (!vaultBalance) {
+          vaultBalance = {
+            chainId,
+            tokenAddress,
+            tokenSymbol,
+            shares: '0',
+            estimatedValue: 0,
+            yieldEarned: 0,
+            depositedAmount: '0',
+            depositedValueUSD: 0,
+            lastUpdated: new Date(),
+          };
+          userVault.vaultBalances.push(vaultBalance);
+        }
+
+        // Update with contract data
+        vaultBalance.shares = shares;
+        vaultBalance.tokenSymbol = tokenSymbol;
+        vaultBalance.estimatedValue = parseFloat(estimatedValue) / 1e18; // Convert from wei to tokens
+        vaultBalance.lastUpdated = new Date();
+
+        this.logger.log(
+          `✅ Synced ${tokenSymbol} balance: ${shares} shares, ${vaultBalance.estimatedValue} tokens`,
+        );
+      }
+
+      // Remove positions that no longer exist in the contract
+      userVault.vaultBalances = userVault.vaultBalances.filter((balance) => {
+        if (balance.chainId !== chainId) return true; // Keep other chains
+        const stillExists = contractData.tokens.includes(balance.tokenAddress);
+        if (!stillExists) {
+          this.logger.log(
+            `🗑️ Removing ${balance.tokenSymbol} position (no longer in contract)`,
+          );
+        }
+        return stillExists;
+      });
+
+      // Update totals
+      userVault.totalValueLocked = userVault.vaultBalances.reduce(
+        (sum, balance) => sum + balance.estimatedValue,
+        0,
+      );
+
+      await (userVault as UserVaultDocument).save();
+
+      this.logger.log(
+        `✅ Successfully synced vault for ${userAddress}: ${userVault.vaultBalances.length} positions, $${userVault.totalValueLocked.toFixed(2)} TVL`,
+      );
+
+      return userVault;
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to sync vault for ${userAddress}: ${error.message}`,
+      );
+      throw error;
     }
   }
 }

@@ -19,12 +19,19 @@ export default registerAs('config', () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
   blockchain: {
+    chainId: parseInt(process.env.CHAIN_ID || '11155111', 10), // Default to Sepolia
     privateKey: process.env.PRIVATE_KEY,
     sepolia: {
       rpcUrl: process.env.SEPOLIA_RPC_URL,
+      chainId: 11155111,
+    },
+    baseSepolia: {
+      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL,
+      chainId: 84532,
     },
     avalancheFuji: {
       rpcUrl: process.env.AVALANCHE_FUJI_RPC_URL,
+      chainId: 43113,
     },
   },
   chainlink: {

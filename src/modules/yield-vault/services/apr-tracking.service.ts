@@ -323,14 +323,12 @@ export class APRTrackingService {
 
   private getChainName(chainId: number): string {
     const chainNames: { [id: number]: string } = {
-      1: 'ethereum',
-      11155111: 'ethereum', // Sepolia uses same provider
-      137: 'polygon',
-      250: 'fantom',
-      43114: 'avalanche',
+      11155111: 'sepolia',
+      84532: 'baseSepolia',
+      43113: 'avalancheFuji',
     };
 
-    return chainNames[chainId] || 'ethereum';
+    return chainNames[chainId] || 'unknown';
   }
 
   private async updateVaultAPRs(): Promise<void> {

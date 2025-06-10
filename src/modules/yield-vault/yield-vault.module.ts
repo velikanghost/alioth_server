@@ -4,6 +4,7 @@ import { VaultController } from './controllers/vault.controller';
 import { VaultService } from './services/vault.service';
 import { APRTrackingService } from './services/apr-tracking.service';
 import { Web3Module } from '../../shared/web3/web3.module';
+import { MarketAnalysisModule } from '../market-analysis/market-analysis.module';
 
 // Schemas
 import { UserVault, UserVaultSchema } from './schemas/user-vault.schema';
@@ -20,6 +21,7 @@ import { Transaction, TransactionSchema } from './schemas/transaction.schema';
       { name: Transaction.name, schema: TransactionSchema },
     ]),
     Web3Module, // For blockchain interactions
+    MarketAnalysisModule, // For Chainlink price data
   ],
   controllers: [VaultController],
   providers: [VaultService, APRTrackingService],
