@@ -138,6 +138,36 @@ export class VaultController {
     }
   }
 
+  @Post('withdraw-preview')
+  @ApiOperation({
+    summary: 'Preview withdrawal amounts',
+    description:
+      'Get estimated withdrawal amounts before executing the transaction',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Withdrawal preview',
+  })
+  async withdrawPreview(
+    @Request() req: any,
+    @Body() withdrawDto: WithdrawDto,
+  ): Promise<ApiResponseDto<any>> {
+    try {
+      const userAddress =
+        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+
+      const preview = await this.vaultService.getWithdrawalPreview(
+        userAddress,
+        withdrawDto,
+      );
+
+      return ApiResponseDto.success(preview, 'Withdrawal preview generated');
+    } catch (error) {
+      this.logger.error('Withdrawal preview failed:', error);
+      return ApiResponseDto.error(error.message, 'Withdrawal preview failed');
+    }
+  }
+
   @Post('withdraw')
   @ApiOperation({
     summary: 'Withdraw tokens from yield vault',

@@ -1002,7 +1002,7 @@ export class VaultService {
 
   // Contract addresses (from YIELDOPTIMIZER_GUIDE.md)
   private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0xe1B925801114A148785F35AEBF8F112E3ed00F01';
+    '0x2720d892296aeCde352125444606731639BFfD89';
   private readonly AAVE_ADAPTER_ADDRESS =
     '0x604D42BFcf61F489a188f372741138AE3E154dC8';
 
@@ -1269,12 +1269,42 @@ export class VaultService {
       `Processing withdrawal for user ${userAddress}: ${withdrawDto.shares} shares of ${withdrawDto.tokenAddress}`,
     );
 
+    let transaction: any;
+
     try {
       // 1. Validate withdrawal
       await this.validateWithdrawal(userAddress, withdrawDto);
 
-      // 2. Create transaction record
-      const transaction = new this.transactionModel({
+      // 2. Get user's current shares (before withdrawal)
+      const sharesBefore = await this.getUserShares(
+        userAddress,
+        withdrawDto.tokenAddress,
+        withdrawDto.chainId,
+      );
+
+      // 3. Calculate USD value for the shares being withdrawn
+      const tokenPriceUSD = await this.getTokenPriceUSD(
+        withdrawDto.tokenAddress,
+      );
+
+      // Get token decimals for accurate calculation
+      const tokenDecimals = await this.getTokenDecimals(
+        withdrawDto.tokenAddress,
+        withdrawDto.chainId,
+      );
+
+      // For withdrawal, shares represent the amount of tokens to withdraw
+      // Convert shares to decimal using actual token decimals
+      const tokenAmount =
+        parseFloat(withdrawDto.shares) / Math.pow(10, tokenDecimals);
+      const amountUSD = tokenAmount * tokenPriceUSD;
+
+      this.logger.log(
+        `💰 Withdrawal value: ${tokenAmount.toFixed(6)} tokens × $${tokenPriceUSD.toFixed(2)} = $${amountUSD.toFixed(2)} USD`,
+      );
+
+      // 4. Create transaction record
+      transaction = new this.transactionModel({
         userAddress,
         chainId: withdrawDto.chainId,
         type: TransactionType.WITHDRAW,
@@ -1284,38 +1314,87 @@ export class VaultService {
           withdrawDto.chainId,
         ),
         amount: withdrawDto.shares, // For withdrawals, amount = shares
+        amountUSD,
         status: TransactionStatus.PENDING,
         timestamp: new Date(),
         initiatedBy: 'user',
+        shares: {
+          sharesBefore,
+          sharesAfter: sharesBefore, // Will update after confirmation
+          sharesDelta: '0', // Will update after confirmation
+        },
       });
 
       await transaction.save();
+      this.logger.log(`Created transaction record: ${transaction._id}`);
 
-      // 3. Get user's current shares (before withdrawal)
-      const sharesBefore = await this.getUserShares(
+      // 5. Execute withdrawal on smart contract
+      const executionResult = await this.executeWithdrawal(
         userAddress,
-        withdrawDto.tokenAddress,
-        withdrawDto.chainId,
+        withdrawDto,
       );
 
-      // 4. Execute withdrawal on smart contract
-      const txHash = await this.executeWithdrawal(userAddress, withdrawDto);
+      // 6. Wait for transaction confirmation using viem (if real transaction)
+      let sharesAfter = sharesBefore;
+      let sharesDelta = '0';
+      let gasUsed = 0;
 
-      // 5. Update transaction
-      transaction.txHash = txHash;
+      if (executionResult.startsWith('0x') && executionResult.length === 66) {
+        // Real transaction hash - wait for confirmation
+        this.logger.log(`Transaction submitted: ${executionResult}`);
+        const chainName = this.getChainName(withdrawDto.chainId);
+        const publicClient = this.web3Service.getClient(chainName);
+
+        try {
+          // Wait for transaction receipt
+          const receipt = await publicClient.waitForTransactionReceipt({
+            hash: executionResult as `0x${string}`,
+            timeout: 60000, // 60 second timeout
+          });
+
+          if (receipt.status !== 'success') {
+            throw new Error(
+              `Transaction failed with status: ${receipt.status}`,
+            );
+          }
+
+          this.logger.log(
+            `✅ Transaction confirmed in block ${receipt.blockNumber}`,
+          );
+
+          // Get updated shares from contract after confirmation
+          sharesAfter = await this.getUserShares(
+            userAddress,
+            withdrawDto.tokenAddress,
+            withdrawDto.chainId,
+          );
+
+          sharesDelta = (BigInt(sharesBefore) - BigInt(sharesAfter)).toString();
+          gasUsed = Number(receipt.gasUsed);
+
+          this.logger.log(
+            `✅ Withdrawal confirmed: ${sharesBefore} -> ${sharesAfter} shares (-${sharesDelta}), Gas: ${receipt.gasUsed}`,
+          );
+        } catch (receiptError) {
+          this.logger.warn(
+            `Could not get transaction receipt, using estimated values: ${receiptError.message}`,
+          );
+          // For simulation, calculate expected shares reduction
+          sharesDelta = withdrawDto.shares;
+          sharesAfter = (BigInt(sharesBefore) - BigInt(sharesDelta)).toString();
+        }
+      } else {
+        // Simulated transaction - calculate expected values
+        this.logger.log(`🎭 Using simulated withdrawal values`);
+        sharesDelta = withdrawDto.shares;
+        sharesAfter = (BigInt(sharesBefore) - BigInt(sharesDelta)).toString();
+      }
+
+      // 7. Update transaction with final data
+      transaction.txHash = executionResult;
       transaction.status = TransactionStatus.CONFIRMED;
       transaction.confirmedAt = new Date();
-
-      // 6. Get shares after withdrawal
-      const sharesAfter = await this.getUserShares(
-        userAddress,
-        withdrawDto.tokenAddress,
-        withdrawDto.chainId,
-      );
-      const sharesDelta = (
-        BigInt(sharesBefore) - BigInt(sharesAfter)
-      ).toString();
-
+      transaction.gasUsed = gasUsed;
       transaction.shares = {
         sharesBefore,
         sharesAfter,
@@ -1324,7 +1403,7 @@ export class VaultService {
 
       await transaction.save();
 
-      // 7. Update user vault record
+      // 8. Update user vault record
       await this.updateUserVault(
         userAddress,
         withdrawDto,
@@ -1332,16 +1411,138 @@ export class VaultService {
         'withdraw',
       );
 
-      // 8. Update vault statistics
+      // 9. Update vault statistics
       await this.updateVaultStats(
         withdrawDto.tokenAddress,
         withdrawDto.chainId,
       );
 
-      this.logger.log(`Withdrawal successful: ${txHash}`);
+      this.logger.log(`Withdrawal successful: ${executionResult}`);
       return transaction;
     } catch (error) {
       this.logger.error(`Withdrawal failed for user ${userAddress}:`, error);
+      throw error;
+    }
+  }
+
+  async getWithdrawalPreview(
+    userAddress: string,
+    withdrawDto: WithdrawDto,
+  ): Promise<any> {
+    this.logger.log(
+      `Generating withdrawal preview for ${userAddress}: ${withdrawDto.shares} shares of ${withdrawDto.tokenAddress}`,
+    );
+
+    try {
+      const chainName = this.getChainName(withdrawDto.chainId);
+      const contract = this.web3Service.createContract(
+        chainName,
+        this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+        MULTI_ASSET_VAULT_V2_ABI,
+      );
+
+      // Get current user shares
+      const userShares = await this.getUserShares(
+        userAddress,
+        withdrawDto.tokenAddress,
+        withdrawDto.chainId,
+      );
+
+      // Get user position details
+      const userPosition = await contract.read.getUserPosition([
+        userAddress as Address,
+        withdrawDto.tokenAddress as Address,
+      ]);
+
+      const [totalUserShares, totalUserValue] = userPosition as [
+        bigint,
+        bigint,
+        bigint,
+        string,
+      ];
+
+      // Get token stats
+      const tokenStats = await contract.read.getTokenStats([
+        withdrawDto.tokenAddress as Address,
+      ]);
+
+      const [totalShares, totalValue] = tokenStats as [
+        bigint,
+        bigint,
+        bigint,
+        string,
+      ];
+
+      // Calculate estimated withdrawal amount
+      let estimatedTokens = BigInt(0);
+      let conversionRate = 0;
+
+      if (totalUserShares > BigInt(0)) {
+        // Calculate tokens per share for this user
+        const tokensPerShare = totalUserValue / totalUserShares;
+        estimatedTokens = BigInt(withdrawDto.shares) * tokensPerShare;
+        conversionRate = parseFloat(tokensPerShare.toString()) / 1e18;
+      }
+
+      // Calculate various slippage scenarios
+      const slippageOptions = [1, 2, 5, 10]; // 1%, 2%, 5%, 10%
+      const slippageEstimates = slippageOptions.map((percent) => ({
+        slippagePercent: percent,
+        minAmount: (
+          (estimatedTokens * BigInt(100 - percent)) /
+          BigInt(100)
+        ).toString(),
+        minAmountFormatted:
+          parseFloat(
+            (
+              (estimatedTokens * BigInt(100 - percent)) /
+              BigInt(100)
+            ).toString(),
+          ) / 1e18,
+      }));
+
+      // Get token price for USD calculations
+      const tokenPriceUSD = await this.getTokenPriceUSD(
+        withdrawDto.tokenAddress,
+      );
+      const tokenDecimals = await this.getTokenDecimals(
+        withdrawDto.tokenAddress,
+        withdrawDto.chainId,
+      );
+
+      return {
+        userShares: userShares,
+        requestedShares: withdrawDto.shares,
+        estimatedTokens: estimatedTokens.toString(),
+        estimatedTokensFormatted:
+          parseFloat(estimatedTokens.toString()) / Math.pow(10, tokenDecimals),
+        estimatedUSD:
+          (parseFloat(estimatedTokens.toString()) /
+            Math.pow(10, tokenDecimals)) *
+          tokenPriceUSD,
+        conversionRate,
+        tokensPerShare:
+          parseFloat(totalUserShares.toString()) > 0
+            ? parseFloat(totalUserValue.toString()) /
+              parseFloat(totalUserShares.toString())
+            : 0,
+        slippageEstimates,
+        contractData: {
+          totalShares: totalShares.toString(),
+          totalValue: totalValue.toString(),
+          userTotalShares: totalUserShares.toString(),
+          userTotalValue: totalUserValue.toString(),
+        },
+        recommendation: {
+          suggestedMinAmount: slippageEstimates[2].minAmount, // 5% slippage
+          warningMessage:
+            BigInt(withdrawDto.shares) > BigInt(userShares)
+              ? `Insufficient shares. You have ${userShares}, requesting ${withdrawDto.shares}`
+              : null,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Withdrawal preview failed: ${error.message}`);
       throw error;
     }
   }
@@ -1689,9 +1890,106 @@ export class VaultService {
         throw new BadRequestException('Insufficient shares for withdrawal');
       }
 
-      // Calculate minimum amount (apply 0.5% slippage protection)
-      const minAmount =
-        (BigInt(withdrawDto.shares) * BigInt(995)) / BigInt(1000);
+      // Check if total shares is zero (would cause division by zero)
+      try {
+        const contract = this.web3Service.createContract(
+          chainName,
+          this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+          MULTI_ASSET_VAULT_V2_ABI,
+        );
+
+        const tokenStats = await contract.read.getTokenStats([
+          withdrawDto.tokenAddress as Address,
+        ]);
+
+        const [totalShares, totalValue] = tokenStats as [
+          bigint,
+          bigint,
+          bigint,
+          string,
+        ];
+
+        if (totalShares === BigInt(0)) {
+          this.logger.warn(
+            `⚠️ Total shares is zero for token ${withdrawDto.tokenAddress}, cannot withdraw`,
+          );
+          throw new BadRequestException(
+            'Cannot withdraw: no tokens deposited in vault',
+          );
+        }
+
+        if (totalValue === BigInt(0)) {
+          this.logger.warn(
+            `⚠️ Total value is zero for token ${withdrawDto.tokenAddress}, potential division by zero`,
+          );
+          throw new BadRequestException('Cannot withdraw: vault has no value');
+        }
+
+        this.logger.log(
+          `📊 Token stats - Total shares: ${totalShares}, Total value: ${totalValue}`,
+        );
+      } catch (statsError) {
+        this.logger.warn(
+          `Could not get token stats, proceeding with caution: ${statsError.message}`,
+        );
+      }
+
+      // Calculate minimum amount with proper slippage protection
+      // For withdrawals, we need to estimate the token amount we'll receive for the shares
+      let minAmount: bigint;
+
+      if (withdrawDto.minAmount) {
+        minAmount = BigInt(withdrawDto.minAmount);
+        this.logger.log(`🎯 Using provided minAmount: ${minAmount}`);
+      } else {
+        // Try to get the estimated withdrawal amount from contract
+        try {
+          const contract = this.web3Service.createContract(
+            chainName,
+            this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+            MULTI_ASSET_VAULT_V2_ABI,
+          );
+
+          // Get user position to estimate conversion rate
+          const userPosition = await contract.read.getUserPosition([
+            userAddress as Address,
+            withdrawDto.tokenAddress as Address,
+          ]);
+
+          const [userShares, userValue] = userPosition as [
+            bigint,
+            bigint,
+            bigint,
+            string,
+          ];
+
+          if (userShares > BigInt(0)) {
+            // Calculate estimated tokens per share
+            const tokensPerShare = userValue / userShares;
+            const estimatedTokens = BigInt(withdrawDto.shares) * tokensPerShare;
+
+            // Apply 5% slippage protection (more conservative)
+            minAmount = (estimatedTokens * BigInt(95)) / BigInt(100);
+
+            this.logger.log(
+              `💡 Calculated minAmount: ${estimatedTokens} estimated → ${minAmount} with 5% slippage`,
+            );
+          } else {
+            // Fallback: very conservative minimum (1% of shares)
+            minAmount = BigInt(withdrawDto.shares) / BigInt(100);
+            this.logger.log(
+              `⚠️ Fallback minAmount (1% of shares): ${minAmount}`,
+            );
+          }
+        } catch (estimationError) {
+          this.logger.warn(
+            `Could not estimate withdrawal amount: ${estimationError.message}`,
+          );
+          // Ultra-conservative fallback: 1% of shares
+          minAmount = BigInt(withdrawDto.shares) / BigInt(100);
+          this.logger.log(`🚨 Ultra-conservative minAmount: ${minAmount}`);
+        }
+      }
 
       let txHash: string;
 
@@ -1701,6 +1999,10 @@ export class VaultService {
           chainName,
           this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
           MULTI_ASSET_VAULT_V2_ABI,
+        );
+
+        this.logger.log(
+          `🔄 Executing withdrawal: ${withdrawDto.shares} shares, minAmount: ${minAmount}`,
         );
 
         // Execute actual withdrawal transaction
@@ -1718,7 +2020,30 @@ export class VaultService {
 
         this.logger.log(`✅ Real withdrawal transaction executed: ${txHash}`);
       } catch (walletError) {
-        // Fallback to simulation if transaction fails
+        // Check if it's a division by zero or revert error
+        const errorMessage = walletError.message.toLowerCase();
+
+        if (
+          errorMessage.includes('division by zero') ||
+          errorMessage.includes('panic') ||
+          errorMessage.includes('arithmetic')
+        ) {
+          this.logger.error(
+            `🚨 Contract arithmetic error (likely division by zero): ${walletError.message}`,
+          );
+          throw new BadRequestException(
+            'Cannot withdraw: vault calculation error. The vault may have insufficient liquidity or invalid state.',
+          );
+        }
+
+        if (errorMessage.includes('insufficient')) {
+          this.logger.error(
+            `🚨 Insufficient funds error: ${walletError.message}`,
+          );
+          throw new BadRequestException('Insufficient funds for withdrawal');
+        }
+
+        // Fallback to simulation if transaction fails for other reasons
         this.logger.warn(
           `⚠️ Withdrawal transaction failed, using simulation: ${walletError.message}`,
         );
