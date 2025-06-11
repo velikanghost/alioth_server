@@ -105,7 +105,7 @@ export class VaultController {
 
   @Post('approve')
   @ApiOperation({
-    summary: 'Approve token spending for vault',
+    summary: 'Approve token for vault spending',
     description:
       'Approve the vault contract to spend tokens on behalf of the user',
   })
@@ -117,12 +117,18 @@ export class VaultController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async approve(
+    @Request() req: any,
     @Body() approveDto: ApproveDto,
   ): Promise<ApiResponseDto<{ txHash: string }>> {
     this.logger.log(`Approve request: ${JSON.stringify(approveDto)}`);
 
     try {
+      const userAddress =
+        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+
       const txHash = await this.vaultService.approveToken(
+        userAddress,
+        approveDto.aliothWalletId,
         approveDto.tokenAddress,
         approveDto.amount,
         approveDto.chainId,

@@ -14,6 +14,13 @@ import { RiskProfile } from '../schemas/user-vault.schema';
 
 export class DepositDto {
   @ApiProperty({
+    description: 'Alioth wallet ID to use for the transaction',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @IsString()
+  aliothWalletId: string;
+
+  @ApiProperty({
     description: 'Token contract address',
     example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
   })
@@ -46,6 +53,13 @@ export class DepositDto {
 
 export class WithdrawDto {
   @ApiProperty({
+    description: 'Alioth wallet ID to use for the transaction',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @IsString()
+  aliothWalletId: string;
+
+  @ApiProperty({
     description: 'Token contract address',
     example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
   })
@@ -77,6 +91,13 @@ export class WithdrawDto {
 }
 
 export class ApproveDto {
+  @ApiProperty({
+    description: 'Alioth wallet ID to use for the transaction',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @IsString()
+  aliothWalletId: string;
+
   @ApiProperty({
     description: 'Token contract address to approve',
     example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',

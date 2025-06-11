@@ -8,6 +8,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Address } from 'viem';
 import { Web3Service } from '../../../shared/web3/web3.service';
+import { PrivyService } from '../../../shared/privy/privy.service';
+import { AliothWalletService } from './alioth-wallet.service';
 import { UserVault, UserVaultDocument } from '../schemas/user-vault.schema';
 import { Vault, VaultDocument } from '../schemas/vault.schema';
 import {
@@ -1000,11 +1002,10 @@ const TOKEN_ABI = [
 export class VaultService {
   private readonly logger = new Logger(VaultService.name);
 
-  // Contract addresses (from YIELDOPTIMIZER_GUIDE.md)
   private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
     '0x2720d892296aeCde352125444606731639BFfD89';
   private readonly AAVE_ADAPTER_ADDRESS =
-    '0x604D42BFcf61F489a188f372741138AE3E154dC8';
+    '0xebA1D1cF26a70E489a9C2997A744F86c05697B20';
 
   constructor(
     @InjectModel(UserVault.name)
@@ -1014,6 +1015,8 @@ export class VaultService {
     private transactionModel: Model<TransactionDocument>,
     private web3Service: Web3Service,
     private chainlinkDataService: ChainlinkDataService,
+    private privyService: PrivyService,
+    private aliothWalletService: AliothWalletService,
   ) {}
 
   private async getTokenPriceUSD(tokenAddress: string): Promise<number> {
@@ -1709,57 +1712,35 @@ export class VaultService {
   }
 
   async approveToken(
+    userAddress: string,
+    aliothWalletId: string,
     tokenAddress: string,
     amount: string,
     chainId: number,
   ): Promise<string> {
     this.logger.log(
-      `Approving ${amount} of token ${tokenAddress} for vault on chain ${chainId}`,
+      `Approving ${amount} of token ${tokenAddress} for vault on chain ${chainId} using Alioth wallet ${aliothWalletId}`,
     );
 
     try {
-      const chainName = this.getChainName(chainId);
-
-      // Create token contract with wallet client for writing
-      const tokenContract = this.web3Service.createWalletContract(
-        chainName,
-        tokenAddress as Address,
-        [
-          {
-            type: 'function',
-            name: 'approve',
-            inputs: [
-              { name: 'spender', type: 'address' },
-              { name: 'amount', type: 'uint256' },
-            ],
-            outputs: [{ name: '', type: 'bool' }],
-            stateMutability: 'nonpayable',
-          },
-        ],
+      // Get user's Alioth wallet for transaction execution
+      const aliothWallet = await this.getUserAliothWallet(
+        userAddress,
+        aliothWalletId,
       );
 
-      try {
-        // Execute approval transaction
-        const txHash = await tokenContract.write.approve(
-          [this.MULTI_ASSET_VAULT_V2_ADDRESS as Address, BigInt(amount)],
-          {
-            account: this.web3Service.getWalletClient(chainName).account!,
-            chain: this.web3Service.getChainConfig(chainName).chain,
-          },
-        );
+      // Execute token approval via Privy-managed Alioth wallet
+      const txHash = await this.privyService.ensureTokenApproval(
+        aliothWallet.privyWalletId,
+        aliothWallet.aliothWalletAddress,
+        tokenAddress,
+        this.MULTI_ASSET_VAULT_V2_ADDRESS,
+        amount,
+        chainId,
+      );
 
-        this.logger.log(`✅ Token approval transaction executed: ${txHash}`);
-        return txHash;
-      } catch (walletError) {
-        // Fallback to simulation if transaction fails
-        this.logger.warn(
-          `⚠️ Token approval transaction failed, using simulation: ${walletError.message}`,
-        );
-
-        const txHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2).padStart(40, '0')}`;
-        this.logger.log(`🎭 Simulated approval transaction: ${txHash}`);
-        return txHash;
-      }
+      this.logger.log(`✅ Token approval transaction executed: ${txHash}`);
+      return txHash;
     } catch (error) {
       this.logger.error(`Token approval failed: ${error.message}`);
       throw new BadRequestException(`Token approval failed: ${error.message}`);
@@ -1811,16 +1792,11 @@ export class VaultService {
     depositDto: DepositDto,
   ): Promise<string> {
     try {
-      // First check and approve token if needed
-      await this.ensureTokenApproval(
+      // Get or create user's Alioth wallet for transaction execution
+      const aliothWallet = await this.getUserAliothWallet(
         userAddress,
-        depositDto.tokenAddress,
-        depositDto.amount,
-        depositDto.chainId,
+        depositDto.aliothWalletId,
       );
-
-      // Get chain name from chainId
-      const chainName = this.getChainName(depositDto.chainId);
 
       // Calculate minimum shares (apply 0.5% slippage protection)
       const minShares =
@@ -1829,31 +1805,23 @@ export class VaultService {
       let txHash: string;
 
       try {
-        // Create wallet contract for actual transaction execution
-        const contract = this.web3Service.createWalletContract(
-          chainName,
-          this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
-          MULTI_ASSET_VAULT_V2_ABI,
+        // Execute deposit transaction via Privy-managed Alioth wallet
+        txHash = await this.privyService.executeVaultDeposit(
+          aliothWallet.privyWalletId,
+          this.MULTI_ASSET_VAULT_V2_ADDRESS,
+          depositDto.tokenAddress,
+          depositDto.amount,
+          minShares.toString(),
+          depositDto.chainId,
         );
 
-        // Execute actual deposit transaction
-        txHash = await contract.write.deposit(
-          [
-            depositDto.tokenAddress as Address,
-            BigInt(depositDto.amount),
-            minShares,
-          ],
-          {
-            account: this.web3Service.getWalletClient(chainName).account!,
-            chain: this.web3Service.getChainConfig(chainName).chain,
-          },
+        this.logger.log(
+          `✅ Privy vault deposit transaction executed: ${txHash}`,
         );
-
-        this.logger.log(`✅ Real deposit transaction executed: ${txHash}`);
-      } catch (walletError) {
-        // Fallback to simulation if transaction fails
+      } catch (privyError) {
+        // Fallback to simulation if Privy transaction fails
         this.logger.warn(
-          `⚠️ Deposit transaction failed, using simulation: ${walletError.message}`,
+          `⚠️ Privy vault deposit transaction failed, using simulation: ${privyError.message}`,
         );
 
         txHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2).padStart(40, '0')}`;
@@ -1871,6 +1839,12 @@ export class VaultService {
     withdrawDto: WithdrawDto,
   ): Promise<string> {
     try {
+      // Get user's Alioth wallet for transaction execution
+      const aliothWallet = await this.getUserAliothWallet(
+        userAddress,
+        withdrawDto.aliothWalletId,
+      );
+
       const chainName = this.getChainName(withdrawDto.chainId);
 
       // Check emergency stop status
@@ -1994,34 +1968,26 @@ export class VaultService {
       let txHash: string;
 
       try {
-        // Create wallet contract for actual transaction execution
-        const contract = this.web3Service.createWalletContract(
-          chainName,
-          this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
-          MULTI_ASSET_VAULT_V2_ABI,
-        );
-
         this.logger.log(
           `🔄 Executing withdrawal: ${withdrawDto.shares} shares, minAmount: ${minAmount}`,
         );
 
-        // Execute actual withdrawal transaction
-        txHash = await contract.write.withdraw(
-          [
-            withdrawDto.tokenAddress as Address,
-            BigInt(withdrawDto.shares),
-            minAmount,
-          ],
-          {
-            account: this.web3Service.getWalletClient(chainName).account!,
-            chain: this.web3Service.getChainConfig(chainName).chain,
-          },
+        // Execute withdrawal transaction via Privy-managed Alioth wallet
+        txHash = await this.privyService.executeVaultWithdrawal(
+          aliothWallet.privyWalletId,
+          this.MULTI_ASSET_VAULT_V2_ADDRESS,
+          withdrawDto.tokenAddress,
+          withdrawDto.shares,
+          minAmount.toString(),
+          withdrawDto.chainId,
         );
 
-        this.logger.log(`✅ Real withdrawal transaction executed: ${txHash}`);
-      } catch (walletError) {
+        this.logger.log(
+          `✅ Privy vault withdrawal transaction executed: ${txHash}`,
+        );
+      } catch (privyError) {
         // Check if it's a division by zero or revert error
-        const errorMessage = walletError.message.toLowerCase();
+        const errorMessage = privyError.message.toLowerCase();
 
         if (
           errorMessage.includes('division by zero') ||
@@ -2029,7 +1995,7 @@ export class VaultService {
           errorMessage.includes('arithmetic')
         ) {
           this.logger.error(
-            `🚨 Contract arithmetic error (likely division by zero): ${walletError.message}`,
+            `🚨 Contract arithmetic error (likely division by zero): ${privyError.message}`,
           );
           throw new BadRequestException(
             'Cannot withdraw: vault calculation error. The vault may have insufficient liquidity or invalid state.',
@@ -2038,14 +2004,14 @@ export class VaultService {
 
         if (errorMessage.includes('insufficient')) {
           this.logger.error(
-            `🚨 Insufficient funds error: ${walletError.message}`,
+            `🚨 Insufficient funds error: ${privyError.message}`,
           );
           throw new BadRequestException('Insufficient funds for withdrawal');
         }
 
         // Fallback to simulation if transaction fails for other reasons
         this.logger.warn(
-          `⚠️ Withdrawal transaction failed, using simulation: ${walletError.message}`,
+          `⚠️ Withdrawal transaction failed, using simulation: ${privyError.message}`,
         );
 
         txHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2).padStart(40, '0')}`;
@@ -2253,87 +2219,36 @@ export class VaultService {
     return chainName;
   }
 
-  private async ensureTokenApproval(
+  /**
+   * Get user's Alioth wallet by ID and verify ownership
+   */
+  private async getUserAliothWallet(
     userAddress: string,
-    tokenAddress: string,
-    amount: string,
-    chainId: number,
-  ): Promise<void> {
+    aliothWalletId: string,
+  ): Promise<any> {
     try {
-      const chainName = this.getChainName(chainId);
+      // Get the Alioth wallet by ID
+      const aliothWallet =
+        await this.aliothWalletService.getAliothWalletById(aliothWalletId);
 
-      // Create token contract instance with proper ERC20 ABI
-      const tokenContract = this.web3Service.createContract(
-        chainName,
-        tokenAddress as Address,
-        [
-          {
-            type: 'function',
-            name: 'allowance',
-            inputs: [
-              { name: 'owner', type: 'address' },
-              { name: 'spender', type: 'address' },
-            ],
-            outputs: [{ name: '', type: 'uint256' }],
-            stateMutability: 'view',
-          },
-          {
-            type: 'function',
-            name: 'approve',
-            inputs: [
-              { name: 'spender', type: 'address' },
-              { name: 'amount', type: 'uint256' },
-            ],
-            outputs: [{ name: '', type: 'bool' }],
-            stateMutability: 'nonpayable',
-          },
-        ],
-      );
-
-      // Check current allowance
-      let allowance: bigint;
-      try {
-        const result = await tokenContract.read.allowance([
-          userAddress as Address,
-          this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
-        ]);
-        allowance = BigInt(result as string);
-        this.logger.log(
-          `Current allowance for ${tokenAddress}: ${allowance.toString()}`,
-        );
-      } catch (allowanceError) {
-        this.logger.warn(
-          `Could not check allowance for token ${tokenAddress}: ${allowanceError.message}`,
-        );
-        // Skip approval check and proceed - let the actual transaction handle it
-        this.logger.log(
-          `Skipping allowance check for ${tokenAddress}, proceeding with deposit`,
-        );
-        return;
-      }
-
-      // If allowance is insufficient, block the transaction
-      if (allowance < BigInt(amount)) {
-        this.logger.error(
-          `Insufficient allowance for ${tokenAddress}. Current: ${allowance.toString()}, Required: ${amount}`,
-        );
-        throw new BadRequestException(
-          `Insufficient token allowance. Please approve ${amount} tokens for ${this.MULTI_ASSET_VAULT_V2_ADDRESS} before depositing. Current allowance: ${allowance.toString()}`,
+      // Verify that the wallet belongs to the user
+      if (aliothWallet.userAddress !== userAddress) {
+        throw new Error(
+          'Unauthorized: Alioth wallet does not belong to this user',
         );
       }
 
-      this.logger.log(
-        `✅ Token approval verified for ${tokenAddress}: ${allowance.toString()} >= ${amount}`,
-      );
+      if (!aliothWallet.isActive) {
+        throw new Error('Alioth wallet is inactive');
+      }
+
+      return aliothWallet;
     } catch (error) {
-      // If it's a BadRequestException (insufficient allowance), re-throw it
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      this.logger.warn(`Token approval check failed: ${error.message}`);
-      // Don't throw error for other failures - proceed with transaction and let contract handle approval
-      this.logger.log(`Proceeding with deposit despite approval check failure`);
+      this.logger.error(
+        `Failed to get Alioth wallet ${aliothWalletId} for user ${userAddress}:`,
+        error,
+      );
+      throw error;
     }
   }
 

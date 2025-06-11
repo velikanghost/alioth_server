@@ -18,6 +18,10 @@ export default registerAs('config', () => ({
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
+  privy: {
+    appId: process.env.PRIVY_APP_ID,
+    appSecret: process.env.PRIVY_APP_SECRET,
+  },
   blockchain: {
     chainId: parseInt(process.env.CHAIN_ID || '11155111', 10), // Default to Sepolia
     privateKey: process.env.PRIVATE_KEY,
