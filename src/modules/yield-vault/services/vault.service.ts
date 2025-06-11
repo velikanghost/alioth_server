@@ -1130,8 +1130,13 @@ export class VaultService {
       await this.validateDeposit(depositDto);
 
       // 2. Get user's current shares (before deposit)
-      const sharesBefore = await this.getUserShares(
+      const aliothWallet = await this.getUserAliothWallet(
         userAddress,
+        depositDto.aliothWalletId,
+      );
+
+      const sharesBefore = await this.getUserShares(
+        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
         depositDto.tokenAddress,
         depositDto.chainId,
       );
@@ -1208,7 +1213,7 @@ export class VaultService {
 
       // 7. Get updated shares from contract after confirmation
       const sharesAfter = await this.getUserShares(
-        userAddress,
+        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
         depositDto.tokenAddress,
         depositDto.chainId,
       );
@@ -1279,8 +1284,13 @@ export class VaultService {
       await this.validateWithdrawal(userAddress, withdrawDto);
 
       // 2. Get user's current shares (before withdrawal)
-      const sharesBefore = await this.getUserShares(
+      const aliothWallet = await this.getUserAliothWallet(
         userAddress,
+        withdrawDto.aliothWalletId,
+      );
+
+      const sharesBefore = await this.getUserShares(
+        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
         withdrawDto.tokenAddress,
         withdrawDto.chainId,
       );
@@ -1367,7 +1377,7 @@ export class VaultService {
 
           // Get updated shares from contract after confirmation
           sharesAfter = await this.getUserShares(
-            userAddress,
+            aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
             withdrawDto.tokenAddress,
             withdrawDto.chainId,
           );
@@ -1444,16 +1454,22 @@ export class VaultService {
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
-      // Get current user shares
-      const userShares = await this.getUserShares(
+      // Get user's Alioth wallet first
+      const aliothWallet = await this.getUserAliothWallet(
         userAddress,
+        withdrawDto.aliothWalletId,
+      );
+
+      // Get current user shares using Alioth wallet address
+      const userShares = await this.getUserShares(
+        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
         withdrawDto.tokenAddress,
         withdrawDto.chainId,
       );
 
-      // Get user position details
+      // Get user position details using Alioth wallet address
       const userPosition = await contract.read.getUserPosition([
-        userAddress as Address,
+        aliothWallet.aliothWalletAddress as Address, // Use Alioth wallet address for position query
         withdrawDto.tokenAddress as Address,
       ]);
 
@@ -1776,9 +1792,15 @@ export class VaultService {
       throw new BadRequestException('Withdrawal shares must be greater than 0');
     }
 
-    // Check user has sufficient shares
-    const userShares = await this.getUserShares(
+    // Get user's Alioth wallet to check shares
+    const aliothWallet = await this.getUserAliothWallet(
       userAddress,
+      withdrawDto.aliothWalletId,
+    );
+
+    // Check user has sufficient shares using Alioth wallet address
+    const userShares = await this.getUserShares(
+      aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
       withdrawDto.tokenAddress,
       withdrawDto.chainId,
     );
@@ -1855,7 +1877,7 @@ export class VaultService {
 
       // Validate user has sufficient shares
       const userShares = await this.getUserShares(
-        userAddress,
+        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
         withdrawDto.tokenAddress,
         withdrawDto.chainId,
       );
@@ -1926,7 +1948,7 @@ export class VaultService {
 
           // Get user position to estimate conversion rate
           const userPosition = await contract.read.getUserPosition([
-            userAddress as Address,
+            aliothWallet.aliothWalletAddress as Address,
             withdrawDto.tokenAddress as Address,
           ]);
 
