@@ -37,6 +37,7 @@
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/websockets": "^11.1.2",
+    "@privy-io/server-auth": "^1.27.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
