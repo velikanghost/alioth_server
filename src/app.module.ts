@@ -13,6 +13,7 @@ import { AIOptimizationModule } from './modules/ai-optimization/ai-optimization.
 import { MarketAnalysisModule } from './modules/market-analysis/market-analysis.module';
 import { SwapExecutionModule } from './modules/swap-execution/swap-execution.module';
 import { PerformanceTrackingModule } from './modules/performance-tracking/performance-tracking.module';
+import { AgentsModule } from './modules/agents/agents.module';
 
 @Module({
   imports: [
@@ -49,10 +50,10 @@ import { PerformanceTrackingModule } from './modules/performance-tracking/perfor
     MarketAnalysisModule,
     SwapExecutionModule,
     PerformanceTrackingModule,
+    AgentsModule,
 
     // AuthModule, - TODO: Complete authentication module
     // CrossChainLendingModule, - TODO: Implement cross-chain lending
-    // AgentsModule, - TODO: Create agents module wrapper
     // NotificationsModule, - TODO: Implement notifications
   ],
   controllers: [AppController],

@@ -1652,6 +1652,7 @@ export class VaultService {
   async getUserPortfolioFromContract(
     userAddress: string,
     chainId: number = 11155111, // Default to Sepolia
+    aliothWalletId?: string,
   ): Promise<{
     tokens: string[];
     receiptTokens: string[];
@@ -1668,9 +1669,64 @@ export class VaultService {
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
-      // Call getUserPortfolio to get all user positions
+      let addressToQuery = userAddress;
+
+      // If aliothWalletId is provided, get the Alioth wallet address
+      if (aliothWalletId) {
+        try {
+          const aliothWallet = await this.getUserAliothWallet(
+            userAddress,
+            aliothWalletId,
+          );
+          addressToQuery = aliothWallet.aliothWalletAddress;
+          this.logger.log(
+            `📊 Using Alioth wallet address ${addressToQuery} for portfolio query (user: ${userAddress})`,
+          );
+        } catch (aliothError) {
+          this.logger.warn(
+            `Could not get Alioth wallet ${aliothWalletId}, falling back to user address: ${aliothError.message}`,
+          );
+        }
+      } else {
+        // Try to get the user's first active Alioth wallet using Mongoose
+        try {
+          this.logger.log(
+            `🔍 Querying database for Alioth wallets for user: ${userAddress}`,
+          );
+
+          const aliothWallets =
+            await this.aliothWalletService.getUserAliothWallets(userAddress);
+
+          this.logger.log(
+            `📊 Found ${aliothWallets.length} Alioth wallets in database for user ${userAddress}`,
+          );
+
+          if (aliothWallets.length > 0) {
+            const activeWallet =
+              aliothWallets.find((w) => w.isActive) || aliothWallets[0];
+            addressToQuery = activeWallet.aliothWalletAddress;
+            this.logger.log(
+              `✅ Using Alioth wallet address ${addressToQuery} for portfolio query (user: ${userAddress})`,
+            );
+          } else {
+            this.logger.error(
+              `❌ No Alioth wallets found for user ${userAddress}. User must create an Alioth wallet first.`,
+            );
+            throw new NotFoundException(
+              `No Alioth wallets found for user ${userAddress}. Please create an Alioth wallet first using POST /api/v1/alioth-wallet/create`,
+            );
+          }
+        } catch (aliothError) {
+          this.logger.error(
+            `❌ Failed to get user's Alioth wallets: ${aliothError.message}`,
+          );
+          throw aliothError;
+        }
+      }
+
+      // Call getUserPortfolio to get all user positions using the appropriate address
       const portfolioData = await contract.read.getUserPortfolio([
-        userAddress as Address,
+        addressToQuery as Address,
       ]);
 
       // Type assertion for the portfolio data structure
@@ -1683,6 +1739,10 @@ export class VaultService {
           readonly string[],
           readonly bigint[],
         ];
+
+      this.logger.log(
+        `✅ Retrieved portfolio for ${addressToQuery}: ${tokens.length} positions`,
+      );
 
       return {
         tokens: tokens.map((addr: string) => addr.toString()),
@@ -2277,16 +2337,18 @@ export class VaultService {
   async syncUserVaultWithContract(
     userAddress: string,
     chainId: number = 11155111,
+    aliothWalletId?: string,
   ): Promise<UserVault> {
     this.logger.log(
       `🔄 Syncing database with contract state for ${userAddress} on chain ${chainId}`,
     );
 
     try {
-      // Get current contract state
+      // Get current contract state using Alioth wallet
       const contractData = await this.getUserPortfolioFromContract(
         userAddress,
         chainId,
+        aliothWalletId,
       );
 
       // Get or create user vault
