@@ -232,8 +232,7 @@ export class ChainlinkPriceFeedService {
       });
 
       // Extract the returned data (using type assertion for proper handling)
-      const [roundId, answer, startedAt, updatedAt, answeredInRound] =
-        result as readonly [bigint, bigint, bigint, bigint, bigint];
+      const [roundId, answer, startedAt, updatedAt, answeredInRound] = result;
 
       // Validate the price data
       if (answer <= 0) {
@@ -318,7 +317,7 @@ export class ChainlinkPriceFeedService {
       });
 
       const [returnedRoundId, answer, startedAt, updatedAt, answeredInRound] =
-        result as readonly [bigint, bigint, bigint, bigint, bigint];
+        result;
 
       if (answer <= 0) {
         throw new Error(`Invalid historical price data: answer is ${answer}`);
@@ -502,7 +501,7 @@ export class ChainlinkPriceFeedService {
         functionName: 'description',
       });
 
-      return description as string;
+      return description;
     } catch (error) {
       this.logger.error(`Failed to get feed description: ${error.message}`);
       throw error;

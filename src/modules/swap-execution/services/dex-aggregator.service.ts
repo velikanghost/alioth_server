@@ -5,7 +5,7 @@ import { Model } from 'mongoose';
 import {
   MarketDataCache,
   MarketDataCacheDocument,
-} from '../../ai-optimization/schemas/market-data-cache.schema';
+} from '../../../shared/schemas/market-data-cache.schema';
 
 export interface SwapParams {
   inputToken: string;

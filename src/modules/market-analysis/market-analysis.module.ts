@@ -8,7 +8,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import {
   MarketDataCache,
   MarketDataCacheSchema,
-} from '../ai-optimization/schemas/market-data-cache.schema';
+} from '../../shared/schemas/market-data-cache.schema';
 
 @Module({
   imports: [

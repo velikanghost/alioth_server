@@ -9,7 +9,7 @@ import {
 import {
   MarketDataCache,
   MarketDataCacheDocument,
-} from '../../../modules/ai-optimization/schemas/market-data-cache.schema';
+} from '../../../shared/schemas/market-data-cache.schema';
 
 export interface MarketAnalysis {
   timestamp: Date;

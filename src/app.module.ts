@@ -9,11 +9,10 @@ import { RedisModule } from './shared/redis/redis.module';
 import { Web3Module } from './shared/web3/web3.module';
 import { SharedModule } from './shared/shared.module';
 import { YieldVaultModule } from './modules/yield-vault/yield-vault.module';
-import { AIOptimizationModule } from './modules/ai-optimization/ai-optimization.module';
+import { ExternalAIModule } from './modules/external-ai/external-ai.module';
 import { MarketAnalysisModule } from './modules/market-analysis/market-analysis.module';
 import { SwapExecutionModule } from './modules/swap-execution/swap-execution.module';
 import { PerformanceTrackingModule } from './modules/performance-tracking/performance-tracking.module';
-import { AgentsModule } from './modules/agents/agents.module';
 
 @Module({
   imports: [
@@ -45,12 +44,11 @@ import { AgentsModule } from './modules/agents/agents.module';
     // Feature modules
     YieldVaultModule,
 
-    // AI Integration modules
-    AIOptimizationModule,
+    // External AI communication module
+    ExternalAIModule,
     MarketAnalysisModule,
     SwapExecutionModule,
     PerformanceTrackingModule,
-    AgentsModule,
 
     // AuthModule, - TODO: Complete authentication module
     // CrossChainLendingModule, - TODO: Implement cross-chain lending

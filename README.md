@@ -112,10 +112,10 @@ Alioth is a unified, AI-driven Onchain Finance platform that blends two compleme
 
 - 🔐 **Web3 Authentication** - Wallet-based authentication with signature verification
 - 🌐 **Multi-Chain Support** - Ethereum, Avalanche, Fantom, Polygon
-- 🤖 **AI Agents** - ElizaOS-style agents for yield optimization and loan underwriting
+- 🔗 **External AI Integration** - Communicates with external AI services for yield optimization
 - 📊 **Real-time Data** - Chainlink oracles for APR tracking and price feeds
 - 🔄 **Cross-Chain Operations** - CCIP integration for seamless multi-chain transactions
-- 📈 **Yield Optimization** - Automated rebalancing across DeFi protocols
+- 📈 **Yield Optimization** - Automated rebalancing through external AI strategies
 - 💰 **Dynamic Lending** - AI-powered loan underwriting with off-chain credit data
 
 ## Architecture
@@ -123,17 +123,35 @@ Alioth is a unified, AI-driven Onchain Finance platform that blends two compleme
 ### Core Modules
 
 - **Auth Module** - Web3 wallet authentication with JWT
-- **Yield Vault Module** - Automated yield optimization
+- **Yield Vault Module** - Automated yield optimization execution
 - **Cross-Chain Lending Module** - Multi-chain lending and borrowing
-- **Agents Module** - AI agent orchestration
+- **External AI Module** - Communication with external AI services
+- **Market Analysis Module** - Real-time market data and analytics
+- **Swap Execution Module** - DEX aggregation and swap execution
+- **Performance Tracking Module** - Portfolio performance analytics
 - **Notifications Module** - User notifications and alerts
 
-### AI Agents
+### External AI Integration
 
-1. **Yield Monitoring & Rebalance Agent** - Tracks APRs and optimizes allocations
-2. **Underwriting & Loan Origination Agent** - Processes loan applications
-3. **Collateral Rebalance & Yield Integration Agent** - Manages idle collateral
-4. **Profit Reporting & Notifications Agent** - Sends user reports and alerts
+The backend provides a comprehensive API for external AI services to:
+
+1. **Access Market Data** - Real-time token prices, yields, volatility, and correlations
+2. **Get Portfolio Data** - Current user positions and performance metrics
+3. **Execute Strategies** - Implementation of AI-generated optimization strategies
+4. **Validate Strategies** - Pre-execution validation of AI recommendations
+5. **Track Performance** - Analytics on AI decision accuracy and effectiveness
+
+#### External AI Endpoints
+
+- `POST /external-ai/market-data` - Provide market data for AI analysis
+- `POST /external-ai/portfolio-data` - Provide user portfolio data
+- `POST /external-ai/execute-optimization` - Execute AI optimization strategy
+- `GET /external-ai/supported-tokens` - Get supported tokens list
+- `GET /external-ai/supported-protocols` - Get supported DeFi protocols
+- `POST /external-ai/validate-strategy` - Validate optimization strategy
+- `GET /external-ai/gas-estimates` - Get current gas estimates
+- `POST /external-ai/log-ai-decision` - Log AI decisions for analytics
+- `GET /external-ai/performance-metrics` - Get AI performance metrics
 
 ## Quick Start
 
@@ -197,128 +215,87 @@ ETHEREUM_RPC_URL=https://your-ethereum-rpc
 AVALANCHE_RPC_URL=https://api.avax.network/ext/bc/C/rpc
 FANTOM_RPC_URL=https://rpc.fantom.network
 POLYGON_RPC_URL=https://your-polygon-rpc
-
-# LLM APIs (for AI agents)
-OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
-
-# Notifications
-DISCORD_WEBHOOK_URL=your-discord-webhook
-SMTP_HOST=your-smtp-host
-SMTP_USER=your-smtp-user
-SMTP_PASS=your-smtp-password
-
-# Swagger Documentation
-SWAGGER_ENABLED=true
 ```
 
-## API Endpoints
+## API Documentation
 
-### Authentication
+### Core DeFi Operations
 
-- `POST /api/v1/auth/wallet-login` - Web3 wallet authentication
-- `POST /api/v1/auth/refresh` - Refresh JWT token
-- `GET /api/v1/auth/profile` - Get user profile
+- **Market Analysis**: Real-time token prices, yields, and market data
+- **Vault Management**: Deposit, withdraw, and manage yield vault positions
+- **Swap Execution**: DEX aggregation for optimal token swaps
+- **Performance Tracking**: Portfolio analytics and performance metrics
 
-### Yield Vault
+### External AI Integration
 
-- `POST /api/v1/yield-vault/deposit` - Deposit assets to vault
-- `POST /api/v1/yield-vault/withdraw` - Withdraw from vault
-- `GET /api/v1/yield-vault/balance` - Get vault balance
-- `GET /api/v1/yield-vault/apr-history` - Get APR history
+The backend serves as a data provider and execution engine for external AI services:
 
-### Cross-Chain Lending
+1. **Data Provider**: Supplies real-time market and portfolio data
+2. **Strategy Validator**: Validates AI-generated strategies before execution
+3. **Execution Engine**: Implements validated strategies through smart contracts
+4. **Analytics Hub**: Tracks and analyzes AI decision performance
 
-- `POST /api/v1/lending/apply` - Apply for loan
-- `GET /api/v1/lending/loans` - Get user loans
-- `POST /api/v1/lending/repay` - Repay loan
-- `GET /api/v1/lending/health-factor` - Get loan health
+### WebSocket Events
 
-### Agents
+Real-time updates for:
 
-- `GET /api/v1/agents/status` - Get agent status
-- `GET /api/v1/agents/logs` - Get agent execution logs
-- `POST /api/v1/agents/rebalance` - Trigger manual rebalance
+- Portfolio value changes
+- Market data updates
+- Strategy execution status
+- Performance metrics
 
-## Development
+## Development Guidelines
 
 ### Project Structure
 
-```
-src/
-├── modules/           # Feature modules
-│   ├── auth/         # Authentication
-│   ├── yield-vault/  # Yield optimization
-│   ├── cross-chain-lending/ # Lending protocol
-│   ├── agents/       # AI agents
-│   └── notifications/ # Notifications
-├── shared/           # Shared services
-│   ├── database/     # MongoDB configuration
-│   ├── redis/        # Redis configuration
-│   └── web3/         # Blockchain services
-├── common/           # Common utilities
-│   ├── dto/          # Data transfer objects
-│   ├── guards/       # Authentication guards
-│   ├── interceptors/ # Request/response interceptors
-│   └── filters/      # Exception filters
-└── config/           # Configuration
-```
+- Use modular architecture with feature-based modules in `/src/modules/`
+- Separate shared services in `/src/shared/`
+- Place common utilities in `/src/common/`
+- Follow the established folder structure with controllers, services, DTOs, and schemas
 
-### Available Scripts
+### Code Patterns
+
+- Use dependency injection throughout the application
+- Implement proper error handling with custom filters
+- Apply validation pipes for all DTOs using class-validator
+- Use guards for authentication and authorization
+- Implement interceptors for request/response transformation
+
+### Database (MongoDB)
+
+- Use Mongoose schemas with proper decorators (@Prop, @Schema)
+- Include timestamps and proper indexing
+- Implement proper query optimization
+- Use transactions for complex operations
+
+### API Development
+
+- Follow RESTful conventions for all endpoints
+- Use Swagger/OpenAPI documentation (@ApiOperation, @ApiResponse)
+- Implement proper pagination with PaginationDto
+- Return consistent response formats
+- Use proper HTTP status codes
+
+## Testing
 
 ```bash
-# Development
-pnpm run start:dev      # Start with hot reload
-pnpm run start:debug    # Start with debugger
+# Unit tests
+pnpm run test
 
-# Building
-pnpm run build          # Build for production
-pnpm run start:prod     # Start production build
+# E2E tests
+pnpm run test:e2e
 
-# Testing
-pnpm run test           # Run unit tests
-pnpm run test:watch     # Run tests in watch mode
-pnpm run test:e2e       # Run end-to-end tests
-pnpm run test:cov       # Run tests with coverage
-
-# Code Quality
-pnpm run lint           # Lint and fix code
-pnpm run format         # Format code with Prettier
+# Test coverage
+pnpm run test:cov
 ```
-
-## Deployment
-
-### Docker
-
-```dockerfile
-# Dockerfile example
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN pnpm install --only=production
-COPY dist ./dist
-EXPOSE 3000
-CMD ["node", "dist/main"]
-```
-
-### Environment Variables for Production
-
-Ensure these are set in production:
-
-- `NODE_ENV=production`
-- Strong `JWT_SECRET` and `JWT_REFRESH_SECRET`
-- Production database URLs
-- Valid RPC URLs for all chains
-- LLM API keys for agent functionality
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+1. Follow the coding standards outlined in this README
+2. Write comprehensive tests for new features
+3. Update documentation for API changes
+4. Ensure all external AI integration points are properly tested
 
 ## License
 
-Private - All rights reserved
+This project is licensed under the MIT License.

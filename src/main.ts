@@ -40,10 +40,11 @@ async function bootstrap() {
       .setVersion('1.0')
       .addBearerAuth()
       .addTag('auth', 'Authentication endpoints')
-      .addTag('yield-vault', 'Yield optimization endpoints')
-      .addTag('lending', 'Cross-chain lending endpoints')
-      .addTag('agents', 'AI agent management endpoints')
-      .addTag('notifications', 'Notification endpoints')
+      .addTag('yield-vault', 'Yield optimization vault management')
+      .addTag('market-analysis', 'Market data and analysis endpoints')
+      .addTag('swap-execution', 'DEX aggregation and swap endpoints')
+      .addTag('performance-tracking', 'Portfolio performance and analytics')
+      .addTag('external-ai', 'External AI service communication endpoints')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
