@@ -290,7 +290,7 @@ export class VaultController {
           {
             userAddress: userVault.userAddress,
             source: 'database',
-            vaultBalances: userVault.vaultBalances.map((balance) => ({
+            vaultBalances: userVault.vaultBalances.map((balance: any) => ({
               ...balance,
               currentAPY: 4.5, // Mock APY - would be calculated from current vault performance
             })),
@@ -625,7 +625,7 @@ export class VaultController {
       return ApiResponseDto.success(
         {
           userAddress: userVault.userAddress,
-          vaultBalances: userVault.vaultBalances.map((balance) => ({
+          vaultBalances: userVault.vaultBalances.map((balance: any) => ({
             ...balance,
             currentAPY: 4.5,
           })),
@@ -748,7 +748,7 @@ export class VaultController {
         {
           userAddress: syncedVault.userAddress,
           source: 'synced_from_contract',
-          vaultBalances: syncedVault.vaultBalances.map((balance) => ({
+          vaultBalances: syncedVault.vaultBalances.map((balance: any) => ({
             ...balance,
             currentAPY: 4.5, // Mock APY
           })),
