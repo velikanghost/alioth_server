@@ -9,10 +9,10 @@ import { RedisModule } from './shared/redis/redis.module';
 import { Web3Module } from './shared/web3/web3.module';
 import { SharedModule } from './shared/shared.module';
 import { YieldVaultModule } from './modules/yield-vault/yield-vault.module';
-import { ExternalAIModule } from './modules/external-ai/external-ai.module';
 import { MarketAnalysisModule } from './modules/market-analysis/market-analysis.module';
 import { SwapExecutionModule } from './modules/swap-execution/swap-execution.module';
 import { PerformanceTrackingModule } from './modules/performance-tracking/performance-tracking.module';
+import { AIOptimizationModule } from './modules/ai-optimization/ai-optimization.module';
 
 @Module({
   imports: [
@@ -44,8 +44,10 @@ import { PerformanceTrackingModule } from './modules/performance-tracking/perfor
     // Feature modules
     YieldVaultModule,
 
-    // External AI communication module
-    ExternalAIModule,
+    // AI-driven optimization module (MVP Core)
+    AIOptimizationModule,
+
+    // Supporting modules
     MarketAnalysisModule,
     SwapExecutionModule,
     PerformanceTrackingModule,

@@ -357,7 +357,7 @@ export class DEXAggregatorService {
     try {
       // In production, fetch from database
       // For now, return mock data
-      return this.generateMockSwapHistory(userAddress, limit);
+      return [];
     } catch (error) {
       this.logger.error(`Failed to get swap history: ${error.message}`);
       return [];
@@ -629,27 +629,5 @@ export class DEXAggregatorService {
       gasEstimate,
       gasCostUSD,
     };
-  }
-
-  private generateMockSwapHistory(
-    userAddress: string,
-    limit: number,
-  ): SwapResult[] {
-    const history: SwapResult[] = [];
-
-    for (let i = 0; i < Math.min(limit, 10); i++) {
-      history.push({
-        txHash: `0x${Math.random().toString(16).substr(2, 64)}`,
-        actualOutput: BigInt(Math.floor(Math.random() * 1e18)),
-        gasUsed: Math.floor(150000 + Math.random() * 100000),
-        executionTime: Math.floor(1000 + Math.random() * 5000),
-        priceImpact: Math.random() * 2,
-        slippage: Math.random() * 0.05,
-        fees: Math.random() * 50,
-        success: Math.random() > 0.1, // 90% success rate
-      });
-    }
-
-    return history;
   }
 }

@@ -41,10 +41,13 @@ async function bootstrap() {
       .addBearerAuth()
       .addTag('auth', 'Authentication endpoints')
       .addTag('yield-vault', 'Yield optimization vault management')
+      .addTag(
+        'ai-optimization',
+        'AI-driven yield optimization and smart contract orchestration',
+      )
       .addTag('market-analysis', 'Market data and analysis endpoints')
       .addTag('swap-execution', 'DEX aggregation and swap endpoints')
       .addTag('performance-tracking', 'Portfolio performance and analytics')
-      .addTag('external-ai', 'External AI service communication endpoints')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);

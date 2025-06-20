@@ -42,6 +42,22 @@ export default registerAs('config', () => ({
     //nodeUrl: process.env.CHAINLINK_NODE_URL,
     apiKey: process.env.CHAINLINK_API_KEY,
   },
+  aiAgent: {
+    endpoint: process.env.AI_AGENT_ENDPOINT || 'http://localhost:3002',
+    apiKey: process.env.AI_AGENT_API_KEY || '',
+    timeout: parseInt(process.env.AI_AGENT_TIMEOUT || '30000', 10),
+  },
+  contracts: {
+    enhancedYieldOptimizer:
+      process.env.ENHANCED_YIELD_OPTIMIZER_ADDRESS ||
+      '0x0000000000000000000000000000000000000000',
+    chainlinkFeedManager:
+      process.env.CHAINLINK_FEED_MANAGER_ADDRESS ||
+      '0x0000000000000000000000000000000000000000',
+    chainlinkAutomationRegistry:
+      process.env.CHAINLINK_AUTOMATION_REGISTRY ||
+      '0x0000000000000000000000000000000000000000',
+  },
   llm: {
     openaiApiKey: process.env.OPENAI_API_KEY,
     //anthropicApiKey: process.env.ANTHROPIC_API_KEY,
