@@ -551,34 +551,28 @@ export class AgentCommunicationService {
     );
 
     try {
-      // Make the simple request to /yield-analysis endpoint
-      const response = await fetch(
+      // Make the simple request to /yield-analysis endpoint using axios
+      const response: AxiosResponse = await axios.post(
         `${this.aiAgentEndpoint}/api/v1/yield-analysis`,
         {
-          method: 'POST',
+          inputToken,
+          inputAmount,
+          riskTolerance,
+        },
+        {
           headers: {
             'Content-Type': 'application/json',
             ...(this.aiAgentApiKey && {
               Authorization: `Bearer ${this.aiAgentApiKey}`,
             }),
           },
-          body: JSON.stringify({
-            inputToken,
-            inputAmount,
-            riskTolerance,
-          }),
+          timeout: 30000, // 30 second timeout
         },
       );
 
-      if (!response.ok) {
-        throw new Error(
-          `AI agent responded with status: ${response.status} ${response.statusText}`,
-        );
-      }
+      const aiResponse = response.data;
 
-      const aiResponse = await response.json();
-
-      this.logger.log('AI response', aiResponse);
+      this.logger.log('AI response:', JSON.stringify(aiResponse, null, 2));
 
       this.logger.log(`✅ AI yield analysis completed successfully`);
 
@@ -588,84 +582,6 @@ export class AgentCommunicationService {
         `❌ Failed to get AI yield analysis: ${error.message}`,
         error.stack,
       );
-
-      // Return simple fallback
-      return this.generateSimpleFallbackResponse(
-        inputToken,
-        inputAmount,
-        riskTolerance,
-      );
     }
-  }
-
-  /**
-   * Generate simple fallback response matching AI format
-   */
-  private generateSimpleFallbackResponse(
-    inputToken: string,
-    inputAmount: string,
-    riskTolerance: string,
-  ): any {
-    this.logger.warn('Generating simple fallback response for yield analysis');
-
-    // Simple fallback based on risk tolerance
-    let allocation: any;
-    let expectedAPY: number;
-
-    switch (riskTolerance.toLowerCase()) {
-      case 'conservative':
-        allocation = [
-          { protocol: 'aave', percentage: 70, expectedAPY: 3.5, riskScore: 2 },
-          {
-            protocol: 'compound',
-            percentage: 30,
-            expectedAPY: 3.2,
-            riskScore: 2,
-          },
-        ];
-        expectedAPY = 3.4;
-        break;
-
-      case 'moderate':
-        allocation = [
-          { protocol: 'aave', percentage: 50, expectedAPY: 4.5, riskScore: 3 },
-          {
-            protocol: 'compound',
-            percentage: 30,
-            expectedAPY: 4.2,
-            riskScore: 3,
-          },
-          { protocol: 'yearn', percentage: 20, expectedAPY: 6.0, riskScore: 4 },
-        ];
-        expectedAPY = 4.7;
-        break;
-
-      case 'aggressive':
-        allocation = [
-          { protocol: 'aave', percentage: 30, expectedAPY: 5.2, riskScore: 3 },
-          { protocol: 'yearn', percentage: 70, expectedAPY: 8.5, riskScore: 5 },
-        ];
-        expectedAPY = 7.3;
-        break;
-
-      default:
-        allocation = [
-          { protocol: 'aave', percentage: 60, expectedAPY: 4.0, riskScore: 2 },
-          {
-            protocol: 'compound',
-            percentage: 40,
-            expectedAPY: 3.8,
-            riskScore: 2,
-          },
-        ];
-        expectedAPY = 3.9;
-    }
-
-    return {
-      allocation,
-      confidence: 0.65,
-      reasoning: `Conservative ${riskTolerance} allocation strategy. Using fallback due to AI service unavailability.`,
-      estimatedAPY: expectedAPY,
-    };
   }
 }

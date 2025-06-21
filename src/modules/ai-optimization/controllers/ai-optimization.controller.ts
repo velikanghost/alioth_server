@@ -30,7 +30,7 @@ import {
   AIOptimizationResponseDto,
   AIOptimizationDataResponse,
 } from '../dto/optimization.dto';
-import { Address, parseUnits } from 'viem';
+import { Address, formatEther, parseUnits } from 'viem';
 import { v4 as uuidv4 } from 'uuid';
 
 @ApiTags('AI Optimization')
@@ -79,23 +79,38 @@ export class AIOptimizationController {
 
       // Step 2: Call AI Agent for yield analysis (simplified)
       this.logger.log('🤖 Requesting AI yield analysis');
-      const aiResponse =
-        await this.agentCommunicationService.requestYieldAnalysisSimple(
-          request.inputToken,
-          request.inputAmount,
-          request.riskTolerance,
-        );
 
-      this.logger.log(
-        `🎯 AI analysis completed with ${(aiResponse.confidence * 100).toFixed(1)}% confidence`,
+      const aiResponse = await fetch(
+        'http://localhost:3001/api/v1/yield-analysis',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputToken: request.inputTokenSymbol,
+            inputAmount: formatEther(BigInt(request.inputAmount), 'wei'),
+            riskTolerance: request.riskTolerance,
+          }),
+        },
       );
+
+      if (!aiResponse.ok) {
+        throw new Error(
+          `AI agent responded with status: ${aiResponse.status} ${aiResponse.statusText}`,
+        );
+      }
+
+      const data = await aiResponse.json();
+
+      this.logger.log('✅ Direct AI yield analysis test successful');
 
       // Step 3: Prepare contract call parameters
       const contractParams = {
         userAddress: request.userAddress as Address,
-        inputToken: request.inputToken as Address,
+        inputToken: request.inputTokenAddress as Address,
         inputAmount: parseUnits(request.inputAmount, 18), // Assuming 18 decimals
-        allocations: aiResponse.allocation,
+        allocations: data.allocation,
         maxSlippage: 0.005, // 0.5% default slippage
         deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour deadline
       };
@@ -117,11 +132,10 @@ export class AIOptimizationController {
       const response: OptimizationResponse = {
         success: true,
         transactionHash: transactionResult.hash,
-        strategy: aiResponse.allocation,
+        strategy: data.allocation,
         estimatedAPY:
-          aiResponse.estimatedAPY ||
-          this.calculateWeightedAPY(aiResponse.allocation),
-        reasoning: aiResponse.reasoning,
+          data.estimatedAPY || this.calculateWeightedAPY(data.allocation),
+        reasoning: data.reasoning,
         trackingId,
       };
 
@@ -458,15 +472,88 @@ export class AIOptimizationController {
 
       return {
         success: false,
-        message: 'AI yield analysis endpoint test failed',
+        message: 'AI yield analysis endpoint test failed (via service)',
         error: error.message,
-        endpoint: 'http://localhost:3001/yield-analysis',
+        endpoint: 'http://localhost:3001/api/v1/yield-analysis',
+        method: 'axios via AgentCommunicationService',
         payload: {
           inputToken: 'USDC',
           inputAmount: '5000',
           riskTolerance: 'moderate',
         },
         timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  @Post('test-yield-analysis-direct')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Test AI Yield Analysis Direct',
+    description:
+      'Test the yield-analysis endpoint directly with fetch (like test-ai-agent)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Direct AI yield analysis test completed',
+  })
+  async testYieldAnalysisDirect(): Promise<any> {
+    this.logger.log('🔍 Testing AI yield analysis endpoint directly...');
+
+    try {
+      // Use fetch directly (same as working test-ai-agent)
+      const response = await fetch(
+        'http://localhost:3001/api/v1/yield-analysis',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputToken: 'USDC',
+            inputAmount: '5000',
+            riskTolerance: 'moderate',
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `AI agent responded with status: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const data = await response.json();
+
+      this.logger.log('✅ Direct AI yield analysis test successful');
+
+      return {
+        success: true,
+        message:
+          'AI yield analysis endpoint is working correctly (direct test)',
+        aiAgentResponse: data,
+        status: response.status,
+        url: 'http://localhost:3001/api/v1/yield-analysis',
+        method: 'fetch (same as working test-ai-agent)',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Direct AI yield analysis test failed: ${error.message}`,
+      );
+
+      return {
+        success: false,
+        message: 'Direct AI yield analysis test failed',
+        error: error.message,
+        url: 'http://localhost:3001/api/v1/yield-analysis',
+        method: 'fetch (same as working test-ai-agent)',
+        timestamp: new Date().toISOString(),
+        comparison: {
+          'test-ai-agent': 'uses fetch() - WORKS',
+          'test-yield-analysis': 'uses axios via service - FAILS',
+          'test-yield-analysis-direct': 'uses fetch() directly - testing',
+        },
       };
     }
   }
@@ -480,8 +567,13 @@ export class AIOptimizationController {
     }
 
     // Validate token address format
-    if (!request.inputToken.match(/^0x[a-fA-F0-9]{40}$/)) {
+    if (!request.inputTokenAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
       throw new Error('Invalid token address format');
+    }
+
+    // Validate token symbol
+    if (!request.inputTokenSymbol.match(/^[A-Z]+$/)) {
+      throw new Error('Invalid token symbol format');
     }
 
     // Validate input amount

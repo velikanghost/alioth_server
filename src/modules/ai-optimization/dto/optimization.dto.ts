@@ -124,9 +124,16 @@ export class OptimizeDepositDto {
   @IsString()
   userAddress: string;
 
-  @ApiProperty({ description: 'Input token contract address (e.g., USDC)' })
+  @ApiProperty({ description: 'Input token symbol (e.g., USDC)' })
   @IsString()
-  inputToken: string;
+  inputTokenSymbol: string;
+
+  @ApiProperty({
+    description:
+      'Input token contract address (e.g., 0x0000000000000000000000000000000000000000)',
+  })
+  @IsString()
+  inputTokenAddress: string;
 
   @ApiProperty({
     description: 'Input amount in wei (e.g., "1000000000" for 1000 USDC)',
