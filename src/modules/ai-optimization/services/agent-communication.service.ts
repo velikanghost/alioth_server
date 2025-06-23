@@ -542,12 +542,12 @@ export class AgentCommunicationService {
    * New method for yield analysis using the correct endpoint and simple payload
    */
   async requestYieldAnalysisSimple(
-    inputToken: string,
-    inputAmount: string,
+    inputTokenAddress: string,
+    usdAmount: number,
     riskTolerance: string,
   ): Promise<any> {
     this.logger.log(
-      `🤖 Requesting yield analysis: ${inputToken} ${inputAmount} (${riskTolerance})`,
+      `🤖 Requesting USD-based yield analysis: $${usdAmount.toFixed(2)} (${riskTolerance})`,
     );
 
     try {
@@ -555,8 +555,8 @@ export class AgentCommunicationService {
       const response: AxiosResponse = await axios.post(
         `${this.aiAgentEndpoint}/api/v1/yield-analysis`,
         {
-          inputToken,
-          inputAmount,
+          inputTokenAddress,
+          usdAmount,
           riskTolerance,
         },
         {
@@ -582,6 +582,57 @@ export class AgentCommunicationService {
         `❌ Failed to get AI yield analysis: ${error.message}`,
         error.stack,
       );
+    }
+  }
+
+  /**
+   * Send USD-based yield analysis request to AI with integrated protocols only
+   */
+  async requestYieldAnalysisUSD(
+    inputTokenAddress: string,
+    usdAmount: number,
+    riskTolerance: string,
+  ): Promise<any> {
+    this.logger.log(
+      `🤖 Requesting USD-based yield analysis: $${usdAmount.toFixed(2)} (${riskTolerance})`,
+    );
+
+    const url = `${this.aiAgentEndpoint}/api/v1/yield-analysis`;
+    const payload = {
+      inputTokenAddress,
+      usdAmount,
+      riskTolerance,
+    };
+
+    this.logger.log(`🔗 Attempting connection to: ${url}`);
+
+    try {
+      // Use fetch for consistency
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.aiAgentApiKey && {
+            Authorization: `Bearer ${this.aiAgentApiKey}`,
+          }),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `AI agent responded with status: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const aiResponse = await response.json();
+
+      this.logger.log('AI response:', JSON.stringify(aiResponse, null, 2));
+      this.logger.log(`✅ USD-based AI yield analysis completed successfully`);
+
+      return aiResponse;
+    } catch (error) {
+      this.logger.error(`🔍 Error message: ${error.message}`);
     }
   }
 }

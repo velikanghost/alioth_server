@@ -1,8 +1,8 @@
 # Alioth Backend MVP Implementation Focus
-## Target: NestJS Backend as Orchestrator for Chainlink Hackathon Demo
+## Target: NestJS Backend as AI-Contract Orchestrator for Chainlink Hackathon Demo
 
 ### 🎯 **Core Responsibility**
-The backend acts as a **smart orchestrator** that coordinates between AI agent analysis and on-chain Chainlink execution, WITHOUT performing critical financial logic that bypasses on-chain validation.
+The backend acts as a **smart orchestrator** that coordinates between AI agent swap execution and on-chain Chainlink-validated protocol deposits, WITHOUT performing critical financial logic that bypasses on-chain validation.
 
 ## 📋 **Required API Endpoints for MVP Demo**
 
@@ -12,25 +12,27 @@ The backend acts as a **smart orchestrator** that coordinates between AI agent a
 @Post('optimize-deposit')
 async optimizeDeposit(@Body() request: OptimizeDepositDto) {
   // 1. Validate user input
-  // 2. Call AI Agent for analysis
-  // 3. Prepare contract call parameters
-  // 4. Submit to smart contract
-  // 5. Return transaction hash and strategy
+  // 2. Call AI Agent for analysis + swap execution
+  // 3. Receive ready-to-deposit tokens from AI
+  // 4. Call smart contract with ready-to-deposit allocation
+  // 5. Return transaction hash and final strategy
 }
 
 interface OptimizeDepositDto {
   userAddress: string;
-  inputToken: string; // USDC address
-  inputAmount: string; // "1000000000" (1000 USDC in wei)
-  riskTolerance: 'conservative' | 'balanced' | 'aggressive';
+  inputTokenAddress: string; // "0xA0b86a33E6FC17036E8b9d2C33F67Df04D6DAB07" (USDC)
+  inputTokenSymbol: string;  // "USDC" 
+  inputAmount: string;       // "1000000000" (1000 USDC in wei)
+  riskTolerance: 'conservative' | 'moderate' | 'aggressive';
   minYieldThreshold?: number;
 }
 
 interface OptimizationResponse {
   success: boolean;
   transactionHash: string;
-  strategy: AllocationStrategy;
-  estimatedAPY: number;
+  swapsExecuted: SwapResult[];        // AI swap execution details
+  finalAllocation: ProtocolAllocation[]; // Ready-to-deposit strategy
+  totalExpectedAPY: number;
   reasoning: string;
   trackingId: string;
 }
@@ -42,98 +44,150 @@ interface OptimizationResponse {
 @WebSocketGateway(3001, { cors: true })
 export class OptimizationGateway {
   // Real-time updates for:
-  // - Contract execution status
+  // - AI swap execution progress
+  // - Contract deposit execution status
   // - Chainlink automation triggers
   // - Portfolio performance updates
   // - Rebalancing events
 }
 ```
 
-## 🤖 **AI Agent Integration Service**
+## 🤖 **Enhanced AI Agent Integration Service**
 
 ### **Required: AgentCommunicationService**
 ```typescript
 // Location: src/modules/ai-optimization/services/agent-communication.service.ts
 @Injectable()
 export class AgentCommunicationService {
-  async requestYieldAnalysis(params: YieldAnalysisRequest): Promise<YieldAnalysisResponse> {
-    // Call ElizaOS agent via HTTP/WebSocket
-    // Parse AI recommendations
-    // Validate response format
-    // Return structured data for contract calls
+  async requestSwapAndOptimization(params: SwapOptimizationRequest): Promise<SwapOptimizationResponse> {
+    // Call ElizaOS agent for complete swap + optimization
+    // AI agent handles: market analysis + swap execution + final allocation
+    // Returns: ready-to-deposit tokens with protocol allocations
+  }
+
+  async pingAIAgent(): Promise<boolean> {
+    // Health check for AI agent availability
+    // Verify wallet balance and DEX connectivity
   }
 }
 
-interface YieldAnalysisRequest {
-  inputToken: string;
-  inputAmount: string;
-  currentMarketData: MarketData;
-  userRiskProfile: RiskProfile;
+interface SwapOptimizationRequest {
+  inputTokenAddress: string;  // "0xA0b86a33E6FC17036E8b9d2C33F67Df04D6DAB07"
+  usdAmount: number;          // 1000 (USD value)
+  riskTolerance: 'conservative' | 'moderate' | 'aggressive';
+  userAddress?: string;       // For personalized analysis
 }
 
-interface YieldAnalysisResponse {
-  allocation: {
+interface SwapOptimizationResponse {
+  swapsExecuted: SwapResult[];
+  finalAllocation: {
     protocol: 'aave' | 'compound' | 'yearn';
-    percentage: number;
+    token: string;            // Ready-to-deposit token address
+    amount: string;           // Ready-to-deposit amount (post-swap)
     expectedAPY: number;
     riskScore: number;
   }[];
+  totalExpectedAPY: number;
   confidence: number;
   reasoning: string;
-  marketAnalysis: MarketAnalysis;
+  timestamp: string;
+}
+
+interface SwapResult {
+  fromToken: string;          // "USDC"
+  toToken: string;           // "WETH"
+  inputAmount: string;       // "600000000"
+  actualOutput: string;      // "0.3 WETH"
+  executedPrice: number;     // Actual swap rate
+  slippage: number;         // Actual slippage
+  gasUsed: number;          // Gas cost
+  swapHash: string;         // Transaction hash
 }
 ```
 
-## 🔗 **Smart Contract Integration Service**
+## 🔗 **Enhanced Smart Contract Integration Service**
 
 ### **Required: Web3ContractService Enhancement**
 ```typescript
 // Location: src/modules/ai-optimization/services/web3-contract.service.ts
 @Injectable()
 export class Web3ContractService {
-  async executeOptimizedDeposit(strategy: AllocationStrategy): Promise<TransactionResult> {
-    // 1. Prepare contract call data
-    // 2. Estimate gas costs
-    // 3. Call EnhancedYieldOptimizer.optimizeDeposit()
-    // 4. Monitor transaction status
-    // 5. Emit WebSocket updates
-    // 6. Store execution log
+  async executeOptimizedDeposits(strategy: FinalAllocationStrategy): Promise<TransactionResult> {
+    // 1. Prepare contract call data for executeOptimizedDeposits()
+    // 2. Convert AI allocation to contract parameters
+    // 3. Estimate gas costs for multi-protocol deposits
+    // 4. Call EnhancedYieldOptimizer.executeOptimizedDeposits()
+    // 5. Monitor transaction status and events
+    // 6. Emit WebSocket updates for real-time tracking
+    // 7. Store execution log with swap and deposit details
   }
 
   async listenToChainlinkEvents(): Promise<void> {
-    // Listen for:
-    // - YieldOptimized events
+    // Listen for enhanced events:
+    // - OptimizationExecuted (with swap details)
+    // - ProtocolDepositExecuted events
     // - AutomationRegistered events
-    // - RebalanceExecuted events
-    // - PriceValidated events
+    // - AutomatedRebalanceExecuted events
+    // - AIAgentAuthorized/Revoked events
+  }
+
+  private formatContractAllocation(aiAllocation: AIAllocation[]): ContractAllocation[] {
+    return aiAllocation.map(alloc => ({
+      protocol: this.mapProtocolToEnum(alloc.protocol),
+      token: alloc.token,
+      amount: BigInt(alloc.amount),
+      minExpectedAPY: parseUnits(alloc.expectedAPY.toString(), 4),
+      maxSlippage: parseUnits('0.5', 4) // 0.5% default
+    }));
   }
 }
 ```
 
-## 📊 **Market Data Service**
+## 📊 **Enhanced Market Data Service**
 
-### **Required: ChainlinkDataService**
+### **Required: TokenService for USD Conversion**
+```typescript
+// Location: src/modules/market-analysis/services/token.service.ts
+@Injectable()
+export class TokenService {
+  async getUSDValue(tokenSymbol: string, tokenAmount: string): Promise<number> {
+    // Convert token amount to USD for AI analysis
+    // Use Chainlink price feeds or CoinGecko API
+    // Example: 1000 USDC → 1000 USD
+    // Example: 0.5 WETH → 1200 USD (if ETH = $2400)
+  }
+
+  async getTokenDecimals(tokenAddress: string): Promise<number> {
+    // Get token decimals for proper amount conversion
+  }
+
+  async validateTokenAddress(tokenAddress: string): Promise<boolean> {
+    // Validate token address is supported
+  }
+}
+```
+
+### **Required: ChainlinkDataService for Validation**
 ```typescript
 // Location: src/modules/market-analysis/services/chainlink-data.service.ts
 @Injectable()
 export class ChainlinkDataService {
-  async getCurrentMarketData(tokens: string[]): Promise<MarketData> {
-    // Fetch data for AI agent analysis (NOT for contract decisions)
-    // Include: prices, yields, volatility, correlations
-    // Source: Multiple APIs + Chainlink feeds for reference
+  async validateAISwapResults(swapResults: SwapResult[]): Promise<ValidationResult> {
+    // Validate AI swap results against Chainlink price feeds
+    // Ensure no price manipulation or excessive slippage
+    // For audit trail and security validation
   }
 
   async getProtocolYields(): Promise<ProtocolYields> {
-    // Aave, Compound, Yearn current APYs
-    // For AI recommendation only
-    // Smart contract will validate actual rates
+    // Get current protocol yields for comparison
+    // Validate AI expectations against actual rates
   }
 }
 ```
 
-## 🏗️ **Database Schema Requirements**
+## 🏗️ **Enhanced Database Schema Requirements**
 
-### **1. Optimization Executions Collection**
+### **1. Enhanced Optimization Executions Collection**
 ```typescript
 // Location: src/shared/database/schemas/optimization-execution.schema.ts
 @Schema({ timestamps: true })
@@ -142,115 +196,158 @@ export class OptimizationExecution {
   userAddress: string;
 
   @Prop({ required: true })
-  inputToken: string;
+  inputTokenAddress: string;
+
+  @Prop({ required: true })
+  inputTokenSymbol: string;
 
   @Prop({ required: true })
   inputAmount: string;
 
   @Prop({ required: true })
-  strategy: AllocationStrategy;
+  swapsExecuted: SwapResult[];           // AI swap execution details
 
   @Prop({ required: true })
-  transactionHash: string;
+  finalAllocation: ProtocolAllocation[]; // Ready-to-deposit strategy
 
   @Prop({ required: true })
-  status: 'pending' | 'executed' | 'failed';
+  contractTransactionHash: string;       // Smart contract execution
+
+  @Prop({ required: true })
+  status: 'ai_processing' | 'swaps_executed' | 'contract_pending' | 'executed' | 'failed';
 
   @Prop()
   chainlinkAutomationId?: string;
 
   @Prop()
-  aiRecommendation: YieldAnalysisResponse;
+  aiRecommendation: SwapOptimizationResponse;
 
   @Prop()
   actualPerformance?: PerformanceMetrics;
+
+  @Prop()
+  totalGasUsed?: number;                 // Combined gas from swaps + deposits
+
+  @Prop()
+  totalExpectedAPY?: number;
 }
 ```
 
-### **2. Chainlink Events Collection**
+### **2. AI Swap Tracking Collection**
 ```typescript
-// Location: src/shared/database/schemas/chainlink-event.schema.ts
+// Location: src/shared/database/schemas/ai-swap.schema.ts
 @Schema({ timestamps: true })
-export class ChainlinkEvent {
+export class AISwapExecution {
   @Prop({ required: true })
-  eventType: 'price_validation' | 'automation_trigger' | 'upkeep_performed';
-
-  @Prop({ required: true })
-  transactionHash: string;
-
-  @Prop({ required: true })
-  blockNumber: number;
-
-  @Prop()
   optimizationId: string;
 
-  @Prop()
-  eventData: Record<string, any>;
+  @Prop({ required: true })
+  fromToken: string;
+
+  @Prop({ required: true })
+  toToken: string;
+
+  @Prop({ required: true })
+  inputAmount: string;
+
+  @Prop({ required: true })
+  outputAmount: string;
+
+  @Prop({ required: true })
+  executedPrice: number;
+
+  @Prop({ required: true })
+  slippage: number;
+
+  @Prop({ required: true })
+  gasUsed: number;
+
+  @Prop({ required: true })
+  swapHash: string;
+
+  @Prop({ required: true })
+  dexUsed: string;                      // "1inch", "paraswap", "uniswap"
+
+  @Prop({ required: true })
+  status: 'pending' | 'executed' | 'failed';
 }
 ```
 
-## 🔧 **Environment Configuration**
+## 🔧 **Enhanced Environment Configuration**
 
 ### **Required Environment Variables**
 ```bash
 # Smart Contract Configuration
 ENHANCED_YIELD_OPTIMIZER_ADDRESS=0x...
 CHAINLINK_FEED_MANAGER_ADDRESS=0x...
+AUTHORIZED_AI_AGENT_ADDRESS=0x...
 
 # AI Agent Configuration
 AI_AGENT_ENDPOINT=http://localhost:3002
 AI_AGENT_API_KEY=...
+AI_AGENT_HEALTH_CHECK_INTERVAL=30000  # 30 seconds
 
-# Blockchain Configuration
-WEB3_RPC_URL=...
-PRIVATE_KEY=... # For contract interaction
+# Blockchain Configuration (Sepolia Focus)
+WEB3_RPC_URL=https://sepolia.infura.io/v3/...
+PRIVATE_KEY=... # For contract interaction (backend wallet)
 CHAIN_ID=11155111 # Sepolia testnet
+
+# Token Configuration (Sepolia)
+USDC_ADDRESS=0xA0b86a33E6FC17036E8b9d2C33F67Df04D6DAB07
+WETH_ADDRESS=0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14
+DAI_ADDRESS=0x6B175474E89094C44Da98b954EedeAC495271d0F
 
 # Chainlink Configuration
 CHAINLINK_VRF_SUBSCRIPTION_ID=...
-CHAINLINK_AUTOMATION_REGISTRY=...
+CHAINLINK_AUTOMATION_REGISTRY=0x...
 ```
 
 ## 🚦 **Implementation Priority Order**
 
-### **Phase 1: Core Orchestration** (MVP Essential)
-1. ✅ OptimizeDepositDto validation and controller
-2. ✅ AgentCommunicationService with HTTP client
-3. ✅ Web3ContractService with optimizeDeposit() call
-4. ✅ Basic error handling and logging
-5. ✅ Database schema and persistence
+### **Phase 1: AI-Contract Orchestration** (MVP Essential)
+1. ✅ Enhanced OptimizeDepositDto with token addresses
+2. ✅ AgentCommunicationService with swap request handling
+3. ✅ Web3ContractService with executeOptimizedDeposits() call
+4. ✅ TokenService for USD conversion and validation
+5. ✅ Enhanced database schemas for swap tracking
 
-### **Phase 2: Real-time Features** (Demo Enhancement)
-1. ✅ WebSocket gateway for live updates
-2. ✅ Chainlink event listeners
-3. ✅ Performance tracking and metrics
-4. ✅ Advanced error recovery
+### **Phase 2: Real-time Monitoring** (Demo Enhancement)
+1. ✅ WebSocket gateway with swap progress updates
+2. ✅ Enhanced Chainlink event listeners
+3. ✅ AI swap result validation
+4. ✅ Performance tracking with gas optimization
 
 ### **Phase 3: Production Features** (Post-MVP)
-1. ⏳ Comprehensive rate limiting
-2. ⏳ Advanced caching strategies
-3. ⏳ Multi-chain support
+1. ⏳ Comprehensive error recovery for failed swaps
+2. ⏳ Advanced caching for AI responses
+3. ⏳ Multi-chain support expansion
 4. ⏳ Advanced monitoring and alerting
 
-## 🧪 **Testing Requirements**
+## 🧪 **Enhanced Testing Requirements**
 
 ### **Critical Test Cases**
 ```typescript
 // Location: src/modules/ai-optimization/ai-optimization.controller.spec.ts
-describe('AI Optimization Controller', () => {
-  it('should orchestrate full optimization flow', async () => {
-    // 1. Mock AI agent response
-    // 2. Mock smart contract interaction
-    // 3. Verify orchestration logic
-    // 4. Assert no critical validation bypass
+describe('Enhanced AI Optimization Controller', () => {
+  it('should orchestrate full AI swap + contract deposit flow', async () => {
+    // 1. Mock AI agent swap execution response
+    // 2. Mock smart contract executeOptimizedDeposits call
+    // 3. Verify orchestration logic handles ready-to-deposit tokens
+    // 4. Assert no financial logic bypasses on-chain validation
   });
 
-  it('should handle AI agent failures gracefully', async () => {
-    // Test fallback mechanisms
+  it('should handle AI swap failures gracefully', async () => {
+    // Test fallback when AI agent swaps fail
+    // Verify user funds are not lost
   });
 
-  it('should validate all inputs before contract calls', async () => {
-    // Ensure no malicious inputs reach contracts
+  it('should validate AI swap results against Chainlink feeds', async () => {
+    // Ensure swap results are reasonable
+    // Detect potential manipulation
+  });
+
+  it('should track gas usage across AI swaps and contract deposits', async () => {
+    // Monitor total gas costs for user transparency
   });
 });
 ```
@@ -259,30 +356,62 @@ describe('AI Optimization Controller', () => {
 
 ### **Must Work Flawlessly:**
 1. ✅ User deposits 1000 USDC → Backend receives request
-2. ✅ Backend calls AI agent → Receives allocation recommendation
-3. ✅ Backend formats data → Calls smart contract successfully
-4. ✅ Backend listens for events → Updates user via WebSocket
-5. ✅ Chainlink automation triggers → Backend tracks rebalancing
+2. ✅ Backend calls AI agent → AI executes swaps (600 USDC → WETH, keeps 400 USDC)
+3. ✅ AI returns ready-to-deposit allocation → Backend receives structured response
+4. ✅ Backend calls smart contract → Deposits 0.3 WETH to Aave, 400 USDC to Compound
+5. ✅ Contract validates via Chainlink → All deposits execute successfully
+6. ✅ Backend tracks all events → Updates user via WebSocket
+7. ✅ Chainlink automation triggers → Backend monitors rebalancing
 
-### **Demo Script Integration:**
+### **Demo Flow Integration:**
 ```typescript
-// Demo endpoint for consistent testing
+// Enhanced demo endpoint for full flow testing
 @Get('demo/status/:trackingId')
 async getDemoStatus(@Param('trackingId') trackingId: string) {
   return {
-    stage: 'optimization_executed' | 'automation_registered' | 'rebalance_triggered',
+    stage: 'ai_swaps_executed' | 'contract_deposits_pending' | 'optimization_executed' | 'automation_registered' | 'rebalance_triggered',
+    aiSwapResults: SwapResult[],
+    contractDeposits: ProtocolAllocation[],
     chainlinkEvents: ChainlinkEvent[],
     currentPerformance: PerformanceMetrics,
+    totalGasUsed: number,
     nextRebalanceEstimate: Date
   };
+}
+
+@Post('demo/simulate-full-flow')
+async simulateFullFlow(@Body() request: DemoFlowRequest) {
+  // Simulate complete flow for testing:
+  // 1. AI agent swap execution
+  // 2. Contract deposit execution  
+  // 3. Chainlink automation setup
+  // 4. Performance tracking
 }
 ```
 
 ## 🎯 **Key Implementation Notes**
 
-1. **NO Financial Logic in Backend** - All critical decisions happen on-chain
-2. **Pure Orchestration** - Backend only coordinates between components
-3. **Chainlink Validation** - All price/rate validations happen on-chain via Chainlink
-4. **Event-Driven Updates** - Use blockchain events for state updates
-5. **Graceful Failures** - Handle AI agent or contract failures elegantly
-6. **Comprehensive Logging** - Track every step for demo and debugging 
+1. **AI-First Architecture** - AI agent handles all swap complexity
+2. **Pure Orchestration** - Backend coordinates but doesn't execute financial operations
+3. **Chainlink Validation** - All final validations happen on-chain via Chainlink
+4. **Event-Driven Updates** - Track both AI swaps and contract deposits
+5. **Gas Transparency** - Monitor total gas costs across AI + contract operations
+6. **Comprehensive Logging** - Track every step from AI request to final deposit
+7. **Error Recovery** - Handle failures at AI swap or contract deposit stages
+
+## 📊 **Enhanced Success Metrics**
+
+### **Integration Metrics:**
+- ✅ AI-Backend communication: <2 seconds response time
+- ✅ Swap execution success rate: >95%
+- ✅ Contract deposit success rate: >99%
+- ✅ End-to-end flow completion: <30 seconds
+- ✅ Gas cost predictability: ±10% of estimates
+
+### **User Experience Metrics:**
+- ✅ Real-time progress updates via WebSocket
+- ✅ Clear error messages for failed operations
+- ✅ Transparent gas cost breakdown
+- ✅ Performance tracking and reporting
+
+**The backend now serves as the intelligent orchestrator that coordinates AI agent swap execution with Chainlink-validated smart contract deposits, providing a seamless bridge between off-chain optimization and on-chain security.** 

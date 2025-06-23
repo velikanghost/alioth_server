@@ -120,13 +120,9 @@ export class AIOptimizationResponseDto {
 
 // Existing DTOs for backwards compatibility
 export class OptimizeDepositDto {
-  @ApiProperty({ description: 'User wallet address' })
+  @ApiProperty({ description: 'User wallet address for contract execution' })
   @IsString()
   userAddress: string;
-
-  @ApiProperty({ description: 'Input token symbol (e.g., USDC)' })
-  @IsString()
-  inputTokenSymbol: string;
 
   @ApiProperty({
     description:
@@ -135,8 +131,13 @@ export class OptimizeDepositDto {
   @IsString()
   inputTokenAddress: string;
 
+  @ApiProperty({ description: 'Input token symbol (e.g., USDC, WBTC, ETH)' })
+  @IsString()
+  inputTokenSymbol: string;
+
   @ApiProperty({
-    description: 'Input amount in wei (e.g., "1000000000" for 1000 USDC)',
+    description:
+      'Input amount in wei (e.g., "1000000000" for 1000 USDC with 6 decimals)',
   })
   @IsString()
   inputAmount: string;
@@ -242,3 +243,121 @@ export interface PerformanceMetrics {
   riskScore: number;
   lastUpdate: Date;
 }
+
+// Token configuration interface
+export interface TokenConfig {
+  symbol: string;
+  address: string;
+  decimals: number;
+}
+
+// AI request interface (what we send to AI)
+export interface AIYieldAnalysisRequest {
+  inputTokenAddress: string;
+  usdAmount: number; // USD value instead of token amount
+  riskTolerance: string;
+}
+
+// New Direct Deposit DTOs for AI Agent Integration
+export class DirectDepositRequestDto {
+  @ApiProperty({
+    description: 'Input token contract address',
+    example: '0xf8fb3713d459d7c1018bd0a49d19b4c44290ebe5',
+  })
+  @IsString()
+  inputTokenAddress: string;
+
+  @ApiProperty({
+    description: 'Input token symbol',
+    example: 'LINK',
+    enum: ['LINK', 'WBTC', 'WETH', 'AAVE', 'GHO', 'EURS'],
+  })
+  @IsString()
+  inputTokenSymbol: string;
+
+  @ApiProperty({
+    description: 'Input token amount in wei',
+    example: '2000000000000000000',
+  })
+  @IsString()
+  inputTokenAmount: string;
+
+  @ApiProperty({
+    description: 'USD value of the deposit',
+    example: 3000,
+  })
+  @IsNumber()
+  usdAmount: number;
+
+  @ApiProperty({
+    enum: RiskTolerance,
+    description: 'User risk tolerance level',
+    example: 'moderate',
+  })
+  @IsEnum(RiskTolerance)
+  riskTolerance: RiskTolerance;
+}
+
+export interface DirectDepositInputToken {
+  address: string;
+  symbol: string;
+  amount: string;
+  usdValue: number;
+}
+
+export interface DirectDepositRecommendation {
+  protocol: string;
+  percentage: number;
+  expectedAPY: number;
+  riskScore: number;
+  tvl: number;
+  chain: string;
+  token: string;
+  amount: string;
+}
+
+export interface DirectDepositOptimization {
+  strategy: string;
+  recommendations: DirectDepositRecommendation[];
+  expectedAPY: number;
+  confidence: number;
+  reasoning: string;
+}
+
+export interface DirectDepositMarketAnalysis {
+  timestamp: string;
+  totalTvl: number;
+  averageYield: number;
+  topProtocols: string[];
+  marketCondition: string;
+}
+
+export interface DirectDepositData {
+  inputToken: DirectDepositInputToken;
+  optimization: DirectDepositOptimization;
+  marketAnalysis: DirectDepositMarketAnalysis;
+  timestamp: string;
+}
+
+export class DirectDepositResponseDto {
+  @ApiProperty({ description: 'Request success status' })
+  success: boolean;
+
+  @ApiProperty({ description: 'Direct deposit optimization data' })
+  data: DirectDepositData;
+
+  @ApiProperty({ description: 'Response timestamp' })
+  timestamp: string;
+}
+
+// Supported tokens configuration (Sepolia testnet addresses)
+export const SUPPORTED_TOKENS = {
+  LINK: '0xf8fb3713d459d7c1018bd0a49d19b4c44290ebe5',
+  WBTC: '0x29f2D40B0605204364af54EC677bD022dA425d03', // Sepolia WBTC
+  WETH: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14', // Sepolia WETH
+  AAVE: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a', // Sepolia AAVE
+  GHO: '0xc4bF5CbDaBE595361438F8c6a187bDc330539c60', // Sepolia GHO
+  EURS: '0x6d906e526a4e2Ca02097BA9d0caA3c382F52278E', // Sepolia EURS
+} as const;
+
+export type SupportedTokenSymbol = keyof typeof SUPPORTED_TOKENS;

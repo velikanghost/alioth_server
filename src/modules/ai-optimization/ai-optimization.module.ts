@@ -8,9 +8,10 @@ import { AIOptimizationController } from './controllers/ai-optimization.controll
 // Services
 import { AgentCommunicationService } from './services/agent-communication.service';
 import { YieldOptimizerService } from './services/yield-optimizer.service';
+import { TokenService } from './services/token.service';
 
 // Gateways
-// import { OptimizationGateway } from './gateways/optimization.gateway';
+// import { OptimizationGateway } from './gateways/optimization.gateway'; // TODO: Implement when needed
 
 // Schemas
 import {
@@ -53,13 +54,14 @@ import { SharedModule } from '../../shared/shared.module';
   providers: [
     AgentCommunicationService,
     YieldOptimizerService,
-    // OptimizationGateway, // TODO: Add when WebSocket implementation is complete
+    TokenService,
+    // OptimizationGateway, // TODO: Implement when websocket is implemented
   ],
 
   exports: [
     AgentCommunicationService,
     YieldOptimizerService,
-    // OptimizationGateway, // TODO: Add when WebSocket implementation is complete
+    TokenService,
     // Export schemas for other modules that might need them
     MongooseModule,
   ],

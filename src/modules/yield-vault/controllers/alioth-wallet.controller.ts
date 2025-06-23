@@ -188,8 +188,7 @@ export class AliothWalletController {
     @Body() createDto: CreateAliothWalletDto,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+      const userAddress = req.user?.walletAddress || '';
 
       this.logger.log(
         `Creating multi-chain Alioth wallet for user: ${userAddress}`,
