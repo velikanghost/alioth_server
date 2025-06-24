@@ -80,8 +80,6 @@ export class ChainConfigurationDto {
   isEnabled?: boolean;
 }
 
-// Removed AliothDepositDto - users fund Alioth wallet directly by sending tokens to aliothWalletAddress
-
 export class AliothOptimizationDto {
   @ApiProperty({
     description: 'Alioth wallet ID to optimize',
@@ -297,96 +295,6 @@ export class AliothWalletController {
     }
   }
 
-  @Get('user/:address')
-  @ApiOperation({
-    summary: 'Get user Alioth wallets',
-    description: 'Retrieve all Alioth wallets for a specific user',
-  })
-  @ApiParam({ name: 'address', description: 'User wallet address' })
-  async getUserAliothWallets(
-    @Param('address') address: string,
-  ): Promise<ApiResponseDto<any>> {
-    try {
-      const wallets =
-        await this.aliothWalletService.getUserAliothWallets(address);
-
-      const response = wallets.map((wallet) => ({
-        id: wallet._id.toString(),
-        userAddress: wallet.userAddress,
-        aliothWalletAddress: wallet.aliothWalletAddress, // Use actual wallet address
-        chainType: wallet.chainType,
-        isActive: wallet.isActive,
-        metadata: wallet.metadata,
-        performance: wallet.performance,
-        createdAt: wallet.createdAt,
-        updatedAt: wallet.updatedAt,
-      }));
-
-      return ApiResponseDto.success(
-        {
-          userAddress: address,
-          aliothWalletAddress: wallets[0]?.aliothWalletAddress,
-          wallets: response,
-          totalWallets: response.length,
-        },
-        'Alioth wallets retrieved successfully',
-      );
-    } catch (error) {
-      this.logger.error('Failed to get user Alioth wallets:', error);
-      return ApiResponseDto.error(
-        error.message,
-        'Failed to retrieve Alioth wallets',
-      );
-    }
-  }
-
-  @Get(':walletId/balance/:chainId')
-  @ApiOperation({
-    summary: 'Get Alioth wallet balance on specific chain',
-    description: 'Retrieve the current balance of tokens in the Alioth wallet',
-  })
-  @ApiParam({ name: 'walletId', description: 'Alioth wallet ID' })
-  @ApiParam({ name: 'chainId', description: 'Chain ID to check balance on' })
-  async getWalletBalance(
-    @Request() req: any,
-    @Param('walletId') walletId: string,
-    @Param('chainId') chainId: string,
-  ): Promise<ApiResponseDto<any>> {
-    try {
-      const userAddress = req.user?.walletAddress || '';
-
-      // Verify ownership
-      const aliothWallet =
-        await this.aliothWalletService.getAliothWalletById(walletId);
-      if (aliothWallet.userAddress !== userAddress) {
-        throw new Error('Unauthorized: Not your Alioth wallet');
-      }
-
-      // Get balance from blockchain
-      const balance = await this.privyService.getWalletBalance(
-        aliothWallet.aliothWalletAddress, // Use actual wallet address
-        parseInt(chainId),
-        'ETH', // For now, just ETH balance
-      );
-
-      return ApiResponseDto.success(
-        {
-          walletId,
-          aliothWalletAddress: aliothWallet.aliothWalletAddress,
-          chainId: parseInt(chainId),
-          balance,
-        },
-        'Wallet balance retrieved successfully',
-      );
-    } catch (error) {
-      this.logger.error('Failed to get wallet balance:', error);
-      return ApiResponseDto.error(
-        error.message,
-        'Failed to get wallet balance',
-      );
-    }
-  }
-
   @Post('transfer')
   @ApiOperation({
     summary: 'Transfer funds from Alioth wallet',
@@ -507,6 +415,96 @@ export class AliothWalletController {
     } catch (error) {
       this.logger.error('Alioth optimization failed:', error);
       return ApiResponseDto.error(error.message, 'Optimization failed');
+    }
+  }
+
+  @Get('user/:address')
+  @ApiOperation({
+    summary: 'Get user Alioth wallets',
+    description: 'Retrieve all Alioth wallets for a specific user',
+  })
+  @ApiParam({ name: 'address', description: 'User wallet address' })
+  async getUserAliothWallets(
+    @Param('address') address: string,
+  ): Promise<ApiResponseDto<any>> {
+    try {
+      const wallets =
+        await this.aliothWalletService.getUserAliothWallets(address);
+
+      const response = wallets.map((wallet) => ({
+        id: wallet._id.toString(),
+        userAddress: wallet.userAddress,
+        aliothWalletAddress: wallet.aliothWalletAddress, // Use actual wallet address
+        chainType: wallet.chainType,
+        isActive: wallet.isActive,
+        metadata: wallet.metadata,
+        performance: wallet.performance,
+        createdAt: wallet.createdAt,
+        updatedAt: wallet.updatedAt,
+      }));
+
+      return ApiResponseDto.success(
+        {
+          userAddress: address,
+          aliothWalletAddress: wallets[0]?.aliothWalletAddress,
+          wallets: response,
+          totalWallets: response.length,
+        },
+        'Alioth wallets retrieved successfully',
+      );
+    } catch (error) {
+      this.logger.error('Failed to get user Alioth wallets:', error);
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to retrieve Alioth wallets',
+      );
+    }
+  }
+
+  @Get(':walletId/balance/:chainId')
+  @ApiOperation({
+    summary: 'Get Alioth wallet balance on specific chain',
+    description: 'Retrieve the current balance of tokens in the Alioth wallet',
+  })
+  @ApiParam({ name: 'walletId', description: 'Alioth wallet ID' })
+  @ApiParam({ name: 'chainId', description: 'Chain ID to check balance on' })
+  async getWalletBalance(
+    @Request() req: any,
+    @Param('walletId') walletId: string,
+    @Param('chainId') chainId: string,
+  ): Promise<ApiResponseDto<any>> {
+    try {
+      const userAddress = req.user?.walletAddress || '';
+
+      // Verify ownership
+      const aliothWallet =
+        await this.aliothWalletService.getAliothWalletById(walletId);
+      if (aliothWallet.userAddress !== userAddress) {
+        throw new Error('Unauthorized: Not your Alioth wallet');
+      }
+
+      // Get balance from blockchain
+      const balance = await this.privyService.getWalletBalance(
+        aliothWallet.aliothWalletAddress, // Use actual wallet address
+        parseInt(chainId),
+        'ETH', // For now, just ETH balance
+      );
+
+      return ApiResponseDto.success(
+        {
+          walletId,
+          aliothWalletAddress: aliothWallet.aliothWalletAddress,
+          chainId: parseInt(chainId),
+          balance,
+        },
+        'Wallet balance retrieved successfully',
+      );
+    } catch (error) {
+      this.logger.error('Failed to get wallet balance:', error);
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to get wallet balance',
+      );
     }
   }
 }

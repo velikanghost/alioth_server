@@ -66,39 +66,6 @@ export class TokenService {
   }
 
   /**
-   * Get USD value of token amount
-   * For now, using mock prices. In production, integrate with price oracle/API
-   */
-  async getUSDValue(tokenSymbol: string, amountWei: string): Promise<number> {
-    const config = this.getTokenConfig(tokenSymbol);
-    if (!config) {
-      throw new Error(`Unsupported token: ${tokenSymbol}`);
-    }
-
-    // Convert to human-readable amount
-    const tokenAmount = parseFloat(
-      this.formatTokenAmount(amountWei, tokenSymbol),
-    );
-
-    // Mock prices (replace with real price API in production)
-    const mockPrices: Record<string, number> = {
-      USDC: 1.0,
-      WBTC: 105000.0,
-      WETH: 2500.0,
-      DAI: 1.0,
-    };
-
-    const price = mockPrices[tokenSymbol.toUpperCase()] || 0;
-    const usdValue = tokenAmount * price;
-
-    this.logger.log(
-      `💰 Token conversion: ${tokenAmount} ${tokenSymbol} = $${usdValue.toFixed(2)} (@ $${price})`,
-    );
-
-    return usdValue;
-  }
-
-  /**
    * Get all supported tokens
    */
   getSupportedTokens(): TokenConfig[] {

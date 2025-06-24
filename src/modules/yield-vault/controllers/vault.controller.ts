@@ -6,10 +6,8 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
   Request,
   Logger,
-  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -31,13 +29,11 @@ import {
   APRSnapshotResponseDto,
   VaultPerformanceResponseDto,
   TransactionResponseDto,
-  AIOptimizedDepositDto,
 } from '../dto/vault.dto';
 import { ApiResponseDto } from '../../../common/dto/response.dto';
 
 @ApiTags('yield-vault')
 @Controller('yield-vault')
-// @UseGuards(JwtAuthGuard) - TODO: Add JWT auth guard
 @ApiBearerAuth()
 export class VaultController {
   private readonly logger = new Logger(VaultController.name);
@@ -137,32 +133,6 @@ export class VaultController {
     }
   }
 
-  @Post('withdraw-preview')
-  @ApiOperation({
-    summary: 'Preview withdrawal amounts',
-    description:
-      'Get estimated withdrawal amounts before executing the transaction',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Withdrawal preview',
-  })
-  async withdrawPreview(
-    @Body() withdrawDto: WithdrawDto,
-  ): Promise<ApiResponseDto<any>> {
-    try {
-      const preview = await this.vaultService.getWithdrawalPreview(
-        withdrawDto.userAddress,
-        withdrawDto,
-      );
-
-      return ApiResponseDto.success(preview, 'Withdrawal preview generated');
-    } catch (error) {
-      this.logger.error('Withdrawal preview failed:', error);
-      return ApiResponseDto.error(error.message, 'Withdrawal preview failed');
-    }
-  }
-
   @Post('withdraw')
   @ApiOperation({
     summary: 'Withdraw tokens from yield vault',
@@ -210,6 +180,69 @@ export class VaultController {
     } catch (error) {
       this.logger.error('Withdrawal failed:', error);
       return ApiResponseDto.error(error.message, 'Withdrawal failed');
+    }
+  }
+
+  @Post('sync/:address')
+  @ApiOperation({
+    summary: 'Sync database with contract state',
+    description:
+      'Manually sync user vault database with actual smart contract state',
+  })
+  @ApiParam({ name: 'address', description: 'User wallet address' })
+  @ApiQuery({
+    name: 'chainId',
+    required: false,
+    description: 'Chain ID (default: 11155111 for Sepolia)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Database synced with contract state',
+    type: ApiResponseDto<UserVaultResponseDto>,
+  })
+  async syncUserVault(
+    @Param('address') address: string,
+    @Query('chainId') chainId?: string,
+  ): Promise<ApiResponseDto<UserVaultResponseDto>> {
+    try {
+      const chainIdNum = chainId ? parseInt(chainId) : 11155111;
+
+      this.logger.log(`Syncing vault for ${address} on chain ${chainIdNum}`);
+
+      const syncedVault = await this.vaultService.syncUserVaultWithContract(
+        address,
+        chainIdNum,
+      );
+
+      return ApiResponseDto.success(
+        {
+          userAddress: syncedVault.userAddress,
+          source: 'synced_from_contract',
+          vaultBalances: syncedVault.vaultBalances.map((balance: any) => ({
+            ...balance,
+            currentAPY: 4.5, // Mock APY
+          })),
+          totalValueLocked: syncedVault.totalValueLocked,
+          totalYieldEarned: syncedVault.totalYieldEarned,
+          riskProfile: syncedVault.riskProfile,
+          statistics: syncedVault.statistics || {
+            totalTransactions: 0,
+            totalDeposits: 0,
+            totalWithdrawals: 0,
+            averageAPY: 0,
+            bestPerformingToken: '',
+            totalRebalances: 0,
+            lastActivityAt: new Date(),
+          },
+        },
+        'Database successfully synced with smart contract state',
+      );
+    } catch (error) {
+      this.logger.error('Failed to sync user vault:', error);
+      return ApiResponseDto.error(
+        error.message,
+        'Failed to sync user vault with contract state',
+      );
     }
   }
 
@@ -442,76 +475,6 @@ export class VaultController {
     }
   }
 
-  @Get('strategies')
-  @ApiOperation({
-    summary: 'Get available strategies',
-    description:
-      'Get list of available yield farming strategies and their current APRs',
-  })
-  @ApiQuery({
-    name: 'tokenAddress',
-    required: false,
-    description: 'Filter by token address',
-  })
-  @ApiQuery({
-    name: 'chainId',
-    required: false,
-    description: 'Filter by chain ID',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Available strategies retrieved',
-    type: ApiResponseDto<any[]>,
-  })
-  async getAvailableStrategies(
-    @Query('tokenAddress') tokenAddress?: string,
-    @Query('chainId') chainId?: number,
-  ): Promise<ApiResponseDto<any[]>> {
-    try {
-      // Mock strategy data - in production this would come from APR tracking service
-      const strategies = [
-        {
-          protocolName: 'aave',
-          chainId: 11155111,
-          tokenAddress: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
-          tokenSymbol: 'AAVE',
-          currentAPY: 4.8,
-          tvl: 1250000,
-          riskScore: 8.5,
-          status: 'active',
-        },
-        {
-          protocolName: 'aave',
-          chainId: 11155111,
-          tokenAddress: '0x29f2D40B0605204364af54EC677bD022dA425d03',
-          tokenSymbol: 'WBTC',
-          currentAPY: 3.2,
-          tvl: 890000,
-          riskScore: 8.5,
-          status: 'active',
-        },
-      ];
-
-      const filteredStrategies = strategies.filter((strategy) => {
-        if (tokenAddress && strategy.tokenAddress !== tokenAddress)
-          return false;
-        if (chainId && strategy.chainId !== chainId) return false;
-        return true;
-      });
-
-      return ApiResponseDto.success(
-        filteredStrategies,
-        'Available strategies retrieved successfully',
-      );
-    } catch (error) {
-      this.logger.error('Failed to get strategies:', error);
-      return ApiResponseDto.error(
-        error.message,
-        'Failed to retrieve strategies',
-      );
-    }
-  }
-
   @Get('performance')
   @ApiOperation({
     summary: 'Get vault performance',
@@ -584,60 +547,6 @@ export class VaultController {
     }
   }
 
-  @Patch('preferences')
-  @ApiOperation({
-    summary: 'Update user preferences',
-    description: 'Update user vault preferences and risk settings',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Preferences updated successfully',
-    type: ApiResponseDto<UserVaultResponseDto>,
-  })
-  async updatePreferences(
-    @Request() req: any,
-    @Body() preferences: UserPreferencesDto,
-  ): Promise<ApiResponseDto<UserVaultResponseDto>> {
-    try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
-
-      const userVault = await this.vaultService.updateUserPreferences(
-        userAddress,
-        preferences,
-      );
-
-      return ApiResponseDto.success(
-        {
-          userAddress: userVault.userAddress,
-          vaultBalances: userVault.vaultBalances.map((balance: any) => ({
-            ...balance,
-            currentAPY: 4.5,
-          })),
-          totalValueLocked: userVault.totalValueLocked,
-          totalYieldEarned: userVault.totalYieldEarned,
-          riskProfile: userVault.riskProfile,
-          statistics: userVault.statistics || {
-            totalTransactions: 0,
-            totalDeposits: 0,
-            totalWithdrawals: 0,
-            averageAPY: 0,
-            bestPerformingToken: '',
-            totalRebalances: 0,
-            lastActivityAt: new Date(),
-          },
-        },
-        'User preferences updated successfully',
-      );
-    } catch (error) {
-      this.logger.error('Failed to update preferences:', error);
-      return ApiResponseDto.error(
-        error.message,
-        'Failed to update preferences',
-      );
-    }
-  }
-
   @Get('transactions/:address')
   @ApiOperation({
     summary: 'Get user transactions',
@@ -698,49 +607,40 @@ export class VaultController {
     }
   }
 
-  @Post('sync/:address')
+  @Patch('preferences')
   @ApiOperation({
-    summary: 'Sync database with contract state',
-    description:
-      'Manually sync user vault database with actual smart contract state',
-  })
-  @ApiParam({ name: 'address', description: 'User wallet address' })
-  @ApiQuery({
-    name: 'chainId',
-    required: false,
-    description: 'Chain ID (default: 11155111 for Sepolia)',
+    summary: 'Update user preferences',
+    description: 'Update user vault preferences and risk settings',
   })
   @ApiResponse({
     status: 200,
-    description: 'Database synced with contract state',
+    description: 'Preferences updated successfully',
     type: ApiResponseDto<UserVaultResponseDto>,
   })
-  async syncUserVault(
-    @Param('address') address: string,
-    @Query('chainId') chainId?: string,
+  async updatePreferences(
+    @Request() req: any,
+    @Body() preferences: UserPreferencesDto,
   ): Promise<ApiResponseDto<UserVaultResponseDto>> {
     try {
-      const chainIdNum = chainId ? parseInt(chainId) : 11155111;
+      const userAddress =
+        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
 
-      this.logger.log(`Syncing vault for ${address} on chain ${chainIdNum}`);
-
-      const syncedVault = await this.vaultService.syncUserVaultWithContract(
-        address,
-        chainIdNum,
+      const userVault = await this.vaultService.updateUserPreferences(
+        userAddress,
+        preferences,
       );
 
       return ApiResponseDto.success(
         {
-          userAddress: syncedVault.userAddress,
-          source: 'synced_from_contract',
-          vaultBalances: syncedVault.vaultBalances.map((balance: any) => ({
+          userAddress: userVault.userAddress,
+          vaultBalances: userVault.vaultBalances.map((balance: any) => ({
             ...balance,
-            currentAPY: 4.5, // Mock APY
+            currentAPY: 4.5,
           })),
-          totalValueLocked: syncedVault.totalValueLocked,
-          totalYieldEarned: syncedVault.totalYieldEarned,
-          riskProfile: syncedVault.riskProfile,
-          statistics: syncedVault.statistics || {
+          totalValueLocked: userVault.totalValueLocked,
+          totalYieldEarned: userVault.totalYieldEarned,
+          riskProfile: userVault.riskProfile,
+          statistics: userVault.statistics || {
             totalTransactions: 0,
             totalDeposits: 0,
             totalWithdrawals: 0,
@@ -750,144 +650,14 @@ export class VaultController {
             lastActivityAt: new Date(),
           },
         },
-        'Database successfully synced with smart contract state',
+        'User preferences updated successfully',
       );
     } catch (error) {
-      this.logger.error('Failed to sync user vault:', error);
+      this.logger.error('Failed to update preferences:', error);
       return ApiResponseDto.error(
         error.message,
-        'Failed to sync user vault with contract state',
+        'Failed to update preferences',
       );
-    }
-  }
-
-  @Post('ai-optimized-deposit')
-  @ApiOperation({
-    summary: 'Execute AI-optimized deposits',
-    description:
-      'Execute multiple vault deposits based on AI optimization recommendations',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'AI-optimized deposits executed successfully',
-    type: ApiResponseDto<{
-      totalDeposits: number;
-      executedDeposits: TransactionResponseDto[];
-      failedDeposits: any[];
-    }>,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async executeAIOptimizedDeposit(
-    @Body(ValidationPipe) optimizedDepositDto: AIOptimizedDepositDto,
-  ): Promise<
-    ApiResponseDto<{
-      totalDeposits: number;
-      executedDeposits: TransactionResponseDto[];
-      failedDeposits: any[];
-    }>
-  > {
-    this.logger.log(
-      `AI-Optimized deposit request: ${optimizedDepositDto.recommendations.length} recommendations for ${optimizedDepositDto.usdAmount} USD`,
-    );
-
-    try {
-      const executedDeposits: TransactionResponseDto[] = [];
-      const failedDeposits: any[] = [];
-
-      // Execute each recommendation as a separate vault deposit
-      for (const recommendation of optimizedDepositDto.recommendations) {
-        try {
-          this.logger.log(
-            `💰 Executing vault deposit: ${recommendation.protocol} - ${recommendation.percentage}% (${recommendation.amount})`,
-          );
-
-          // Calculate amount for this allocation (from AI recommendation)
-          const allocationAmount = recommendation.amount;
-
-          // Calculate minShares (95% of expected shares for slippage protection)
-          const minShares =
-            (BigInt(allocationAmount) * BigInt(95)) / BigInt(100);
-
-          // Create deposit DTO for vault service
-          const depositDto: DepositDto = {
-            userAddress: optimizedDepositDto.userAddress,
-            tokenAddress: optimizedDepositDto.inputTokenAddress,
-            amount: allocationAmount,
-            chainId: 11155111, // Sepolia testnet
-            minShares: minShares.toString(),
-            targetProtocol: recommendation.protocol, // Use protocol from AI recommendation
-          };
-
-          // Execute vault deposit
-          const transaction = await this.vaultService.deposit(
-            optimizedDepositDto.userAddress,
-            depositDto,
-          );
-
-          // Add to executed deposits
-          executedDeposits.push({
-            id: transaction._id.toString(),
-            userAddress: transaction.userAddress,
-            chainId: transaction.chainId,
-            type: transaction.type,
-            tokenAddress: transaction.tokenAddress,
-            tokenSymbol: transaction.tokenSymbol,
-            amount: transaction.amount,
-            amountUSD: transaction.amountUSD || 0,
-            txHash: transaction.txHash || '',
-            status: transaction.status,
-            timestamp: transaction.timestamp,
-            confirmedAt: transaction.confirmedAt || new Date(),
-            gasUsed: transaction.gasUsed || 0,
-            shares: transaction.shares || {
-              sharesBefore: '0',
-              sharesAfter: '0',
-              sharesDelta: '0',
-            },
-            // Add AI-specific metadata
-            aiMetadata: {
-              protocol: recommendation.protocol,
-              expectedAPY: recommendation.expectedAPY,
-              riskScore: recommendation.riskScore,
-              percentage: recommendation.percentage,
-            },
-          });
-
-          this.logger.log(
-            `✅ Vault deposit executed: ${recommendation.protocol} - TX: ${transaction.txHash}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `❌ Vault deposit failed for ${recommendation.protocol}: ${error.message}`,
-          );
-
-          // Track failed execution
-          failedDeposits.push({
-            protocol: recommendation.protocol,
-            amount: recommendation.amount,
-            percentage: recommendation.percentage,
-            error: error.message,
-            timestamp: new Date(),
-          });
-        }
-      }
-
-      this.logger.log(
-        `✅ AI-optimized deposit completed: ${executedDeposits.length} successful, ${failedDeposits.length} failed`,
-      );
-
-      return ApiResponseDto.success(
-        {
-          totalDeposits: optimizedDepositDto.recommendations.length,
-          executedDeposits,
-          failedDeposits,
-        },
-        `AI-optimized deposit completed: ${executedDeposits.length}/${optimizedDepositDto.recommendations.length} successful`,
-      );
-    } catch (error) {
-      this.logger.error('AI-optimized deposit failed:', error);
-      return ApiResponseDto.error(error.message, 'AI-optimized deposit failed');
     }
   }
 }

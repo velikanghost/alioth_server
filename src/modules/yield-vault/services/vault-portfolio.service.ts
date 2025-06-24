@@ -3,18 +3,23 @@ import { Address } from 'viem';
 import { Web3Service } from '../../../shared/web3/web3.service';
 import { AliothWalletService } from './alioth-wallet.service';
 import { MULTI_ASSET_VAULT_V2_ABI } from 'src/utils/abi';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class VaultPortfolioService {
   private readonly logger = new Logger(VaultPortfolioService.name);
-
-  private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0x2720d892296aeCde352125444606731639BFfD89';
+  private readonly aliothVaultAddress: string;
 
   constructor(
     private web3Service: Web3Service,
     private aliothWalletService: AliothWalletService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.aliothVaultAddress = this.configService.get<string>(
+      'config.contracts.aliothVault',
+      '',
+    );
+  }
 
   /**
    * Get user's complete portfolio data directly from MultiVaultV2 contract
@@ -36,7 +41,7 @@ export class VaultPortfolioService {
       const chainName = this.getChainName(chainId);
       const contract = this.web3Service.createContract(
         chainName,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+        this.aliothVaultAddress as Address,
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
@@ -144,7 +149,7 @@ export class VaultPortfolioService {
       const chainName = this.getChainName(chainId);
       const contract = this.web3Service.createContract(
         chainName,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+        this.aliothVaultAddress as Address,
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
@@ -169,20 +174,35 @@ export class VaultPortfolioService {
         const chainName = this.getChainName(chainId);
         const contract = this.web3Service.createContract(
           chainName,
-          this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+          this.aliothVaultAddress as Address,
           MULTI_ASSET_VAULT_V2_ABI,
         );
 
-        // Call getUserPosition to get real-time shares
-        const result = await contract.read.getUserPosition([
+        // Call getUserPortfolio to get real-time shares
+        const portfolioData = await contract.read.getUserPortfolio([
           userAddress as Address,
-          tokenAddress as Address,
         ]);
 
-        // Type assertion for getUserPosition result: [shares, value, apy, receiptTokenAddress]
-        const [shares] = result as [bigint, bigint, bigint, string];
+        // Type assertion for getUserPortfolio result
+        const [tokens, , shares] = portfolioData as [
+          readonly string[],
+          readonly string[],
+          readonly bigint[],
+          readonly bigint[],
+          readonly string[],
+          readonly bigint[],
+        ];
 
-        return shares.toString();
+        // Find the index of the requested token
+        const tokenIndex = tokens.findIndex(
+          (t: string) => t.toLowerCase() === tokenAddress.toLowerCase(),
+        );
+
+        if (tokenIndex === -1) {
+          return '0';
+        }
+
+        return shares[tokenIndex].toString();
       } catch (contractError) {
         this.logger.warn(
           `Could not fetch shares from contract: ${contractError.message}`,

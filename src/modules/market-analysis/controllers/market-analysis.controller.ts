@@ -38,7 +38,7 @@ export class MultiTokenPriceDto {
   chainId?: number;
 }
 
-@ApiTags('Market Analysis')
+@ApiTags('market-analysis')
 @Controller('market-analysis')
 export class MarketAnalysisController {
   private readonly logger = new Logger(MarketAnalysisController.name);
@@ -47,6 +47,142 @@ export class MarketAnalysisController {
     private readonly chainlinkDataService: ChainlinkDataService,
     private readonly chainlinkPriceFeedService: ChainlinkPriceFeedService,
   ) {}
+
+  @Post('yield-comparison')
+  @ApiOperation({
+    summary: 'Compare yields across tokens and protocols',
+    description:
+      'Get comprehensive yield comparison with risk-adjusted returns across different tokens and DeFi protocols',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Yield comparison data retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        timestamp: { type: 'string', format: 'date-time' },
+        comparisons: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              token: { type: 'string' },
+              protocol: { type: 'string' },
+              apy: { type: 'number' },
+              tvl: { type: 'number' },
+              riskScore: { type: 'number' },
+              liquidity: { type: 'number' },
+              riskAdjustedReturn: { type: 'number' },
+            },
+          },
+        },
+        bestOpportunity: {
+          type: 'object',
+          properties: {
+            token: { type: 'string' },
+            protocol: { type: 'string' },
+            apy: { type: 'number' },
+            tvl: { type: 'number' },
+            riskScore: { type: 'number' },
+            liquidity: { type: 'number' },
+            riskAdjustedReturn: { type: 'number' },
+          },
+        },
+        riskAdjustedBest: {
+          type: 'object',
+          properties: {
+            token: { type: 'string' },
+            protocol: { type: 'string' },
+            apy: { type: 'number' },
+            tvl: { type: 'number' },
+            riskScore: { type: 'number' },
+            liquidity: { type: 'number' },
+            riskAdjustedReturn: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  async getYieldComparison(
+    @Body() dto: YieldComparisonDto,
+  ): Promise<YieldComparison> {
+    this.logger.log(
+      `Fetching yield comparison for tokens: ${dto.tokens.join(', ')}`,
+    );
+
+    const amounts = dto.amounts.map((amount) => BigInt(amount));
+
+    return this.chainlinkDataService.getYieldComparison(dto.tokens, amounts);
+  }
+
+  @Post('chainlink/prices/multiple')
+  @ApiOperation({
+    summary: 'Get multiple token prices from Chainlink in parallel',
+    description:
+      'Efficiently fetch USD prices for multiple tokens using Chainlink Data Feeds',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Multiple Chainlink prices retrieved successfully',
+    schema: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        properties: {
+          price: { type: 'number' },
+          timestamp: { type: 'number' },
+          roundId: { type: 'number' },
+          decimals: { type: 'number' },
+          symbol: { type: 'string' },
+          isStale: { type: 'boolean' },
+          staleness: { type: 'number' },
+        },
+      },
+    },
+  })
+  async getMultipleChainlinkPrices(
+    @Body() dto: MultiTokenPriceDto,
+  ): Promise<Record<string, PriceData>> {
+    this.logger.log(
+      `Fetching Chainlink prices for ${dto.symbols.length} tokens: ${dto.symbols.join(', ')}`,
+    );
+
+    return this.chainlinkPriceFeedService.getMultipleTokenPrices(
+      dto.symbols,
+      dto.chainId || 11155111,
+    );
+  }
+
+  @Post('chainlink/validate-price')
+  @ApiOperation({
+    summary: 'Validate price against Chainlink feeds',
+    description:
+      'Compare an expected price with Chainlink oracle data and validate deviation threshold',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Price validation completed',
+    schema: {
+      type: 'object',
+      properties: {
+        isValid: { type: 'boolean' },
+        deviation: { type: 'number' },
+        chainlinkPrice: { type: 'number' },
+        warnings: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  async validatePriceWithChainlink(@Body() dto: PriceValidationDto) {
+    this.logger.log(
+      `Validating price for ${dto.symbol}: expected $${dto.expectedPrice}`,
+    );
+
+    return this.chainlinkDataService.validateTokenPrice(
+      dto.symbol,
+      dto.expectedPrice,
+      dto.deviationThreshold || 0.05,
+    );
+  }
 
   @Get()
   @ApiOperation({
@@ -149,108 +285,6 @@ export class MarketAnalysisController {
     }
 
     return this.chainlinkDataService.getMarketAnalysis(tokens);
-  }
-
-  @Post('validate-swap')
-  @ApiOperation({
-    summary: 'Validate swap rates and slippage',
-    description:
-      'Validate swap rates against Chainlink price feeds and estimate slippage and gas costs',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Swap validation completed',
-    schema: {
-      type: 'object',
-      properties: {
-        isValid: { type: 'boolean' },
-        priceImpact: { type: 'number' },
-        slippage: { type: 'number' },
-        gasCost: { type: 'number' },
-        warnings: { type: 'array', items: { type: 'string' } },
-        recommendedRoute: { type: 'string' },
-      },
-    },
-  })
-  async validateSwapRates(
-    @Body() dto: SwapValidationDto,
-  ): Promise<SwapValidation> {
-    this.logger.log(`Validating swap: ${dto.inputToken} -> ${dto.outputToken}`);
-
-    const amounts = dto.amounts.map((amount) => BigInt(amount));
-
-    return this.chainlinkDataService.validateSwapRates(
-      dto.inputToken,
-      dto.outputToken,
-      amounts,
-    );
-  }
-
-  @Post('yield-comparison')
-  @ApiOperation({
-    summary: 'Compare yields across tokens and protocols',
-    description:
-      'Get comprehensive yield comparison with risk-adjusted returns across different tokens and DeFi protocols',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Yield comparison data retrieved successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        timestamp: { type: 'string', format: 'date-time' },
-        comparisons: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              token: { type: 'string' },
-              protocol: { type: 'string' },
-              apy: { type: 'number' },
-              tvl: { type: 'number' },
-              riskScore: { type: 'number' },
-              liquidity: { type: 'number' },
-              riskAdjustedReturn: { type: 'number' },
-            },
-          },
-        },
-        bestOpportunity: {
-          type: 'object',
-          properties: {
-            token: { type: 'string' },
-            protocol: { type: 'string' },
-            apy: { type: 'number' },
-            tvl: { type: 'number' },
-            riskScore: { type: 'number' },
-            liquidity: { type: 'number' },
-            riskAdjustedReturn: { type: 'number' },
-          },
-        },
-        riskAdjustedBest: {
-          type: 'object',
-          properties: {
-            token: { type: 'string' },
-            protocol: { type: 'string' },
-            apy: { type: 'number' },
-            tvl: { type: 'number' },
-            riskScore: { type: 'number' },
-            liquidity: { type: 'number' },
-            riskAdjustedReturn: { type: 'number' },
-          },
-        },
-      },
-    },
-  })
-  async getYieldComparison(
-    @Body() dto: YieldComparisonDto,
-  ): Promise<YieldComparison> {
-    this.logger.log(
-      `Fetching yield comparison for tokens: ${dto.tokens.join(', ')}`,
-    );
-
-    const amounts = dto.amounts.map((amount) => BigInt(amount));
-
-    return this.chainlinkDataService.getYieldComparison(dto.tokens, amounts);
   }
 
   @Get('tokens/:tokenAddress/price')
@@ -421,44 +455,6 @@ export class MarketAnalysisController {
     };
   }
 
-  @Get('market-conditions')
-  @ApiOperation({
-    summary: 'Get current market conditions',
-    description:
-      'Get overall DeFi market conditions including trends, volatility, and fear/greed index',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Market conditions retrieved successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        trend: { type: 'string', enum: ['BULLISH', 'BEARISH', 'SIDEWAYS'] },
-        volatilityLevel: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
-        liquidityCondition: {
-          type: 'string',
-          enum: ['EXCELLENT', 'GOOD', 'FAIR', 'POOR'],
-        },
-        fearGreedIndex: { type: 'number' },
-        defiTvl: { type: 'number' },
-        lastUpdated: { type: 'string', format: 'date-time' },
-      },
-    },
-  })
-  async getMarketConditions() {
-    this.logger.log('Fetching current market conditions');
-
-    // Mock market conditions - in production, aggregate from multiple sources
-    return {
-      trend: 'SIDEWAYS',
-      volatilityLevel: 'MEDIUM',
-      liquidityCondition: 'GOOD',
-      fearGreedIndex: 52,
-      defiTvl: 50000000000, // $50B
-      lastUpdated: new Date().toISOString(),
-    };
-  }
-
   @Get('chainlink/price/:symbol')
   @ApiOperation({
     summary: 'Get real-time Chainlink price for a token',
@@ -497,75 +493,6 @@ export class MarketAnalysisController {
     return this.chainlinkPriceFeedService.getTokenPriceUSD(
       symbol,
       chainId || 11155111,
-    );
-  }
-
-  @Post('chainlink/prices/multiple')
-  @ApiOperation({
-    summary: 'Get multiple token prices from Chainlink in parallel',
-    description:
-      'Efficiently fetch USD prices for multiple tokens using Chainlink Data Feeds',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Multiple Chainlink prices retrieved successfully',
-    schema: {
-      type: 'object',
-      additionalProperties: {
-        type: 'object',
-        properties: {
-          price: { type: 'number' },
-          timestamp: { type: 'number' },
-          roundId: { type: 'number' },
-          decimals: { type: 'number' },
-          symbol: { type: 'string' },
-          isStale: { type: 'boolean' },
-          staleness: { type: 'number' },
-        },
-      },
-    },
-  })
-  async getMultipleChainlinkPrices(
-    @Body() dto: MultiTokenPriceDto,
-  ): Promise<Record<string, PriceData>> {
-    this.logger.log(
-      `Fetching Chainlink prices for ${dto.symbols.length} tokens: ${dto.symbols.join(', ')}`,
-    );
-
-    return this.chainlinkPriceFeedService.getMultipleTokenPrices(
-      dto.symbols,
-      dto.chainId || 11155111,
-    );
-  }
-
-  @Post('chainlink/validate-price')
-  @ApiOperation({
-    summary: 'Validate price against Chainlink feeds',
-    description:
-      'Compare an expected price with Chainlink oracle data and validate deviation threshold',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Price validation completed',
-    schema: {
-      type: 'object',
-      properties: {
-        isValid: { type: 'boolean' },
-        deviation: { type: 'number' },
-        chainlinkPrice: { type: 'number' },
-        warnings: { type: 'array', items: { type: 'string' } },
-      },
-    },
-  })
-  async validatePriceWithChainlink(@Body() dto: PriceValidationDto) {
-    this.logger.log(
-      `Validating price for ${dto.symbol}: expected $${dto.expectedPrice}`,
-    );
-
-    return this.chainlinkDataService.validateTokenPrice(
-      dto.symbol,
-      dto.expectedPrice,
-      dto.deviationThreshold || 0.05,
     );
   }
 

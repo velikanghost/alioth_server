@@ -3,9 +3,8 @@ import { registerAs } from '@nestjs/config';
 export default registerAs('config', () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   database: {
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/alioth',
-    testUri:
-      process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/alioth_test',
+    uri: process.env.MONGODB_URI || '',
+    testUri: process.env.MONGODB_TEST_URI || '',
   },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
@@ -13,8 +12,8 @@ export default registerAs('config', () => ({
     password: process.env.REDIS_PASSWORD || '',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'fallback-secret-change-in-production',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
+    secret: process.env.JWT_SECRET || 'production',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'secret',
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
@@ -23,8 +22,8 @@ export default registerAs('config', () => ({
     appSecret: process.env.PRIVY_APP_SECRET,
   },
   blockchain: {
-    chainId: parseInt(process.env.CHAIN_ID || '11155111', 10), // Default to Sepolia
-    privateKey: process.env.PRIVATE_KEY,
+    chainId: parseInt(process.env.CHAIN_ID || '11155111', 10),
+
     sepolia: {
       rpcUrl: process.env.SEPOLIA_RPC_URL,
       chainId: 11155111,
@@ -38,43 +37,16 @@ export default registerAs('config', () => ({
       chainId: 43113,
     },
   },
-  chainlink: {
-    //nodeUrl: process.env.CHAINLINK_NODE_URL,
-    apiKey: process.env.CHAINLINK_API_KEY,
-  },
   aiAgent: {
-    endpoint: process.env.AI_AGENT_ENDPOINT || 'http://localhost:3002',
+    endpoint: process.env.AI_AGENT_ENDPOINT || 'http://localhost:3001',
     apiKey: process.env.AI_AGENT_API_KEY || '',
     timeout: parseInt(process.env.AI_AGENT_TIMEOUT || '30000', 10),
   },
   contracts: {
-    enhancedYieldOptimizer:
-      process.env.ENHANCED_YIELD_OPTIMIZER_ADDRESS ||
-      '0x0000000000000000000000000000000000000000',
-    chainlinkFeedManager:
-      process.env.CHAINLINK_FEED_MANAGER_ADDRESS ||
-      '0x0000000000000000000000000000000000000000',
-    chainlinkAutomationRegistry:
-      process.env.CHAINLINK_AUTOMATION_REGISTRY ||
-      '0x0000000000000000000000000000000000000000',
-  },
-  llm: {
-    openaiApiKey: process.env.OPENAI_API_KEY,
-    //anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-  },
-  notifications: {
-    smtp: {
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    discord: {
-      webhookUrl: process.env.DISCORD_WEBHOOK_URL,
-    },
-    slack: {
-      webhookUrl: process.env.SLACK_WEBHOOK_URL,
-    },
+    enhancedYieldOptimizer: process.env.ENHANCED_YIELD_OPTIMIZER_ADDRESS,
+    chainlinkFeedManager: process.env.CHAINLINK_FEED_MANAGER_ADDRESS,
+    chainlinkAutomationRegistry: process.env.CHAINLINK_AUTOMATION_REGISTRY,
+    aliothVault: process.env.ALIOTH_VAULT_ADDRESS,
   },
   rateLimit: {
     ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),

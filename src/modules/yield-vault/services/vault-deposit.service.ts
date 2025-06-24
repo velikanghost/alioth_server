@@ -14,13 +14,12 @@ import { VaultPortfolioService } from './vault-portfolio.service';
 import { Web3Service } from '../../../shared/web3/web3.service';
 import { TOKEN_ABI } from '../../../utils/abi';
 import { parseUnits } from 'viem';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class VaultDepositService {
   private readonly logger = new Logger(VaultDepositService.name);
-
-  private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0xFBC065B72f312Ad41676B977E01aBd9cf86CeF1A';
+  private readonly aliothVaultAddress: string;
 
   constructor(
     @InjectModel(Transaction.name)
@@ -29,7 +28,13 @@ export class VaultDepositService {
     private vaultPortfolioService: VaultPortfolioService,
     private privyService: PrivyService,
     private web3Service: Web3Service,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.aliothVaultAddress = this.configService.get<string>(
+      'config.contracts.aliothVault',
+      '',
+    );
+  }
 
   async deposit(
     userAddress: string,
@@ -214,7 +219,7 @@ export class VaultDepositService {
       // 2. Check current allowance
       const allowance = (await tokenContract.read.allowance([
         aliothWallet.aliothWalletAddress as `0x${string}`,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS as `0x${string}`,
+        this.aliothVaultAddress as `0x${string}`,
       ])) as bigint;
 
       const depositAmount = BigInt(depositDto.amount);
@@ -230,7 +235,7 @@ export class VaultDepositService {
           aliothWallet.privyWalletId,
           aliothWallet.aliothWalletAddress,
           depositDto.tokenAddress,
-          this.MULTI_ASSET_VAULT_V2_ADDRESS,
+          this.aliothVaultAddress,
           depositDto.amount,
           depositDto.chainId,
         );
@@ -273,7 +278,7 @@ export class VaultDepositService {
       // Execute deposit transaction via Privy-managed Alioth wallet
       txHash = await this.privyService.executeVaultDeposit(
         aliothWallet.privyWalletId,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS,
+        this.aliothVaultAddress,
         depositDto.tokenAddress,
         depositDto.amount,
         minShares.toString(),

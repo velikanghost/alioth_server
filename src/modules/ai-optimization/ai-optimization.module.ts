@@ -64,7 +64,6 @@ import { SharedModule } from '../../shared/shared.module';
     AgentCommunicationService,
     YieldOptimizerService,
     TokenService,
-    // Export schemas for other modules that might need them
     MongooseModule,
   ],
 })

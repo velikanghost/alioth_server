@@ -14,13 +14,12 @@ import { WithdrawDto } from '../dto/vault.dto';
 import { VaultTokenService } from './vault-token.service';
 import { VaultPortfolioService } from './vault-portfolio.service';
 import { MULTI_ASSET_VAULT_V2_ABI } from 'src/utils/abi';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class VaultWithdrawalService {
   private readonly logger = new Logger(VaultWithdrawalService.name);
-
-  private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0xFBC065B72f312Ad41676B977E01aBd9cf86CeF1A';
+  private readonly aliothVaultAddress: string;
 
   constructor(
     @InjectModel(Transaction.name)
@@ -29,7 +28,13 @@ export class VaultWithdrawalService {
     private vaultPortfolioService: VaultPortfolioService,
     private privyService: PrivyService,
     private web3Service: Web3Service,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.aliothVaultAddress = this.configService.get<string>(
+      'config.contracts.aliothVault',
+      '',
+    );
+  }
 
   async withdraw(
     userAddress: string,
@@ -124,7 +129,7 @@ export class VaultWithdrawalService {
       const chainName = this.getChainName(withdrawDto.chainId);
       const contract = this.web3Service.createContract(
         chainName,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS as Address,
+        this.aliothVaultAddress as Address,
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
@@ -262,7 +267,7 @@ export class VaultWithdrawalService {
     try {
       return await this.privyService.executeVaultWithdrawal(
         aliothWallet.privyWalletId,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS,
+        this.aliothVaultAddress,
         withdrawDto.tokenAddress,
         withdrawDto.shares,
         withdrawDto.minAmount || '1',

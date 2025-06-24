@@ -39,14 +39,12 @@ async function bootstrap() {
       .setDescription('AI-driven cross-chain DeFi platform API')
       .setVersion('1.0')
       .addBearerAuth()
-      .addTag('auth', 'Authentication endpoints')
       .addTag('yield-vault', 'Yield optimization vault management')
       .addTag(
         'ai-optimization',
         'AI-driven yield optimization and smart contract orchestration',
       )
       .addTag('market-analysis', 'Market data and analysis endpoints')
-      .addTag('swap-execution', 'DEX aggregation and swap endpoints')
       .addTag('performance-tracking', 'Portfolio performance and analytics')
       .build();
 

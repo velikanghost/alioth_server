@@ -55,7 +55,6 @@ export class PrivyService {
         `Creating multi-chain Alioth wallet for user ${userAddress}`,
       );
 
-      // Create a managed wallet for Alioth operations
       const wallet = await this.privy.walletApi.create({
         chainType: 'ethereum',
       });
@@ -64,9 +63,9 @@ export class PrivyService {
         userId: `alioth_wallet_${userAddress}`,
         userAddress,
         privyWalletId: wallet.id,
-        aliothWalletAddress: wallet.address, // Store the real Privy wallet address
+        aliothWalletAddress: wallet.address,
         chainType: 'ethereum',
-        chainId: 0, // Legacy field - Alioth wallets are multi-chain
+        chainId: 0,
         createdAt: new Date(),
         isActive: true,
       };
@@ -86,33 +85,12 @@ export class PrivyService {
   }
 
   /**
-   * Get existing Alioth wallet for a user or create if doesn't exist
-   */
-  async getOrCreateUserAliothWallet(
-    userAddress: string,
-    chainId: number = 11155111,
-  ): Promise<UserAliothWallet> {
-    try {
-      // In production, you'd check database first
-      // For now, we'll create a new wallet each time
-      return await this.createUserAliothWallet(userAddress);
-    } catch (error) {
-      this.logger.error(
-        `Failed to get/create Alioth wallet for ${userAddress}:`,
-        error,
-      );
-      throw error;
-    }
-  }
-
-  /**
    * Sign a message with the user's Alioth wallet
    */
   async signMessage(privyWalletId: string, message: string): Promise<string> {
     try {
       this.logger.log(`Signing message with wallet ${privyWalletId}`);
 
-      // Use Privy's signMessage method
       const { signature } = await this.privy.walletApi.ethereum.signMessage({
         walletId: privyWalletId,
         message: message,
@@ -156,14 +134,12 @@ export class PrivyService {
     try {
       this.logger.log(`Getting balance for wallet address: ${walletAddress}`);
 
-      // Validate wallet address format
       if (!walletAddress || !walletAddress.startsWith('0x')) {
         throw new Error(`Invalid wallet address format: ${walletAddress}`);
       }
 
       const validatedAddress = walletAddress as `0x${string}`;
 
-      // Determine which chain to query based on chainId
       const chainName = this.getChainNameFromChainId(chainId || 11155111);
 
       if (
@@ -171,7 +147,6 @@ export class PrivyService {
         tokenAddress === 'native' ||
         tokenAddress === 'ETH'
       ) {
-        // Get native ETH balance
         const balanceWei = await this.web3Service.getBalance(
           chainName,
           validatedAddress,
@@ -205,14 +180,7 @@ export class PrivyService {
         `Failed to get balance for wallet ${walletAddress}:`,
         error,
       );
-      // Return zero balance on error rather than throwing
-      return {
-        balance: '0',
-        raw: '0',
-        formatted: '0.0',
-        tokenAddress: tokenAddress || 'native',
-        symbol: 'ETH',
-      };
+      throw error;
     }
   }
 
@@ -231,52 +199,15 @@ export class PrivyService {
         `Executing deposit: ${amount} of ${tokenAddress} to wallet ${privyWalletId}`,
       );
 
-      // Use the transfer method to execute the deposit
       return await this.executeTransfer(
         privyWalletId,
-        userAddress, // Transfer to user's address (or specific contract)
+        userAddress,
         tokenAddress,
         amount,
         chainId,
       );
     } catch (error) {
       this.logger.error(`Failed to execute deposit:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Execute Alioth optimization operations
-   */
-  async executeAliothOptimization(
-    privyWalletId: string,
-    optimizationParams: {
-      fromToken: string;
-      toToken: string;
-      amount: string;
-      protocol: string;
-      chainId: number;
-    },
-  ): Promise<string> {
-    try {
-      this.logger.log(`Executing AI optimization with wallet ${privyWalletId}`);
-
-      // For complex optimization, we'd need to orchestrate multiple transactions:
-      // 1. Approve tokens if needed
-      // 2. Execute swaps via DEX aggregators
-      // 3. Deposit to optimal yield protocols
-      // 4. Track performance
-
-      // For now, execute a simple token transfer as the optimization action
-      return await this.executeTransfer(
-        privyWalletId,
-        optimizationParams.protocol, // Transfer to protocol contract
-        optimizationParams.fromToken,
-        optimizationParams.amount,
-        optimizationParams.chainId,
-      );
-    } catch (error) {
-      this.logger.error(`Failed to execute AI optimization:`, error);
       throw error;
     }
   }
@@ -296,11 +227,9 @@ export class PrivyService {
         `Transferring ${amount} of ${tokenAddress} from Alioth wallet to ${toAddress}`,
       );
 
-      // Convert chainId to CAIP-2 format - ensure proper type
       const caip2 = `eip155:${chainId}` as const;
 
       if (tokenAddress === 'native' || tokenAddress === 'ETH') {
-        // Execute native ETH transfer using Privy
         const result = await this.privy.walletApi.ethereum.sendTransaction({
           walletId: privyWalletId,
           caip2,
@@ -314,7 +243,6 @@ export class PrivyService {
         this.logger.log(`💸 ETH transfer executed: ${result.hash}`);
         return result.hash;
       } else {
-        // Execute ERC-20 token transfer
         const transferData = encodeFunctionData({
           abi: [
             {
@@ -366,7 +294,6 @@ export class PrivyService {
         `Withdrawing ${amount} of ${tokenAddress} from Alioth wallet to user ${userMainWallet}`,
       );
 
-      // Use the transfer method with user's main wallet as destination
       return await this.executeTransfer(
         privyWalletId,
         userMainWallet,
@@ -388,32 +315,6 @@ export class PrivyService {
   }
 
   /**
-   * Verify user access and generate authorization key if needed
-   */
-  async verifyUserAccess(
-    userAddress: string,
-    userJwt?: string,
-  ): Promise<boolean> {
-    try {
-      this.logger.log(`Verifying user access for ${userAddress}`);
-
-      if (userJwt) {
-        // In a full implementation, you would use JWT verification
-        // For now, we'll just log that JWT was provided
-        this.logger.log(`✅ User access verified with JWT`);
-        return true;
-      }
-
-      // For now, allow access without JWT (development mode)
-      this.logger.warn(`⚠️ User access granted without JWT verification`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to verify user access:`, error);
-      return false;
-    }
-  }
-
-  /**
    * Execute a vault deposit transaction using the Alioth wallet
    */
   async executeVaultDeposit(
@@ -432,17 +333,6 @@ export class PrivyService {
 
       // Convert chainId to CAIP-2 format - ensure proper type
       const caip2 = `eip155:${chainId}` as const;
-
-      // First ensure token approval if needed
-      // TODO: Pass wallet address from the calling method
-      // await this.ensureTokenApproval(
-      //   privyWalletId,
-      //   walletAddress,
-      //   tokenAddress,
-      //   vaultAddress,
-      //   amount,
-      //   chainId,
-      // );
 
       // Encode vault deposit function call with new signature including targetProtocol
       const depositData = encodeFunctionData({
@@ -650,25 +540,6 @@ export class PrivyService {
       }
     } catch (error) {
       this.logger.error(`Failed to ensure token approval:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get wallet address from Privy wallet ID
-   * Note: In production, pass the wallet address directly as a parameter
-   * since it's already stored in the database when the wallet is created
-   */
-  private async getPrivyWalletAddress(privyWalletId: string): Promise<string> {
-    try {
-      // TODO: Replace this with database lookup or pass address as parameter
-      // The wallet address is already stored in AliothWallet.aliothWalletAddress
-      throw new Error(
-        `getPrivyWalletAddress should be replaced with direct address parameter. ` +
-          `The wallet address is already stored when the wallet is created.`,
-      );
-    } catch (error) {
-      this.logger.error(`Failed to get Privy wallet address:`, error);
       throw error;
     }
   }

@@ -17,37 +17,27 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { AgentCommunicationService } from '../services/agent-communication.service';
-import { YieldOptimizerService } from '../services/yield-optimizer.service';
-import { TokenService } from '../services/token.service';
-import { ChainlinkDataService } from '../../market-analysis/services/chainlink-data.service';
-import { VaultDepositService } from '../../yield-vault/services/vault-deposit.service';
-import { AliothWalletService } from '../../yield-vault/services/alioth-wallet.service';
-import { DepositDto } from '../../yield-vault/dto/vault.dto';
+
 import {
   OptimizeDepositDto,
   OptimizationResponse,
   DemoStatusResponse,
-  YieldAnalysisRequest,
   RiskTolerance,
-  TransactionResult,
   AIPortfolioOptimizationRequestDto,
   AIOptimizationResponseDto,
   AIOptimizationDataResponse,
   SUPPORTED_TOKENS,
   SupportedTokenSymbol,
 } from '../dto/optimization.dto';
-import { Address, formatEther, parseUnits } from 'viem';
 import { v4 as uuidv4 } from 'uuid';
 
-@ApiTags('AI Optimization')
+@ApiTags('ai-optimization')
 @Controller('ai-optimization')
 export class AIOptimizationController {
   private readonly logger = new Logger(AIOptimizationController.name);
 
   constructor(
     private readonly agentCommunicationService: AgentCommunicationService,
-    private readonly tokenService: TokenService,
-    private readonly aliothWalletService: AliothWalletService,
   ) {}
 
   @Post('optimize-deposit')
@@ -93,24 +83,6 @@ export class AIOptimizationController {
           `Unsupported token: ${request.inputTokenSymbol}. Supported tokens: ${Object.keys(SUPPORTED_TOKENS).join(', ')}`,
         );
       }
-
-      // Step 2: Get Alioth wallet for user (using first available wallet)
-      // const aliothWallets = await this.aliothWalletService.getUserAliothWallets(
-      //   request.userAddress,
-      // );
-      // if (!aliothWallets || aliothWallets.length === 0) {
-      //   throw new Error(
-      //     `No Alioth wallet found for user: ${request.userAddress}`,
-      //   );
-      // }
-      // const aliothWallet = aliothWallets[0]; // Use first available wallet
-
-      // // Step 3: Convert token amount to USD
-      // this.logger.log('💰 Converting token amount to USD for AI analysis');
-      // const usdAmount = await this.tokenService.getUSDValue(
-      //   request.inputTokenSymbol,
-      //   request.inputAmount,
-      // );
 
       // Step 4: Call AI agent for optimization recommendation
       this.logger.log('🤖 Calling AI agent for optimization recommendation');
@@ -166,6 +138,70 @@ export class AIOptimizationController {
         estimatedAPY: 0,
         reasoning: `Optimization failed: ${error.message}`,
         trackingId,
+      };
+    }
+  }
+
+  @Post('portfolio-optimization')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'AI Portfolio Optimization',
+    description: 'Get AI-driven portfolio optimization recommendations',
+  })
+  @ApiBody({ type: AIPortfolioOptimizationRequestDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Portfolio optimization completed successfully',
+    type: AIOptimizationResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error during optimization',
+  })
+  async portfolioOptimization(
+    @Body(ValidationPipe) request: AIPortfolioOptimizationRequestDto,
+  ): Promise<AIOptimizationResponseDto> {
+    this.logger.log(
+      `🤖 AI Portfolio Optimization request: "${request.content.text}" - ${request.content.inputToken} ${request.content.inputAmount}`,
+    );
+
+    try {
+      // Call AI agent for portfolio optimization
+      const aiData: AIOptimizationDataResponse =
+        await this.agentCommunicationService.requestPortfolioOptimization(
+          request.content,
+        );
+
+      this.logger.log(
+        `✅ AI Portfolio Optimization completed with ${aiData.confidence}% confidence`,
+      );
+
+      return {
+        success: true,
+        data: aiData,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(
+        `❌ Portfolio optimization failed: ${error.message}`,
+        error.stack,
+      );
+
+      // Return error response
+      return {
+        success: false,
+        data: {
+          allocation: { stablecoins: 0, bluechip: 0, riskAssets: 0 },
+          expectedAPY: 0,
+          protocols: [],
+          confidence: 0,
+          reasoning: `Portfolio optimization failed: ${error.message}`,
+        },
+        timestamp: new Date().toISOString(),
       };
     }
   }
@@ -284,179 +320,6 @@ export class AIOptimizationController {
     );
 
     return { tokens };
-  }
-
-  @Post('portfolio-optimization')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'AI Portfolio Optimization',
-    description: 'Get AI-driven portfolio optimization recommendations',
-  })
-  @ApiBody({ type: AIPortfolioOptimizationRequestDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Portfolio optimization completed successfully',
-    type: AIOptimizationResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid input parameters',
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error during optimization',
-  })
-  async portfolioOptimization(
-    @Body(ValidationPipe) request: AIPortfolioOptimizationRequestDto,
-  ): Promise<AIOptimizationResponseDto> {
-    this.logger.log(
-      `🤖 AI Portfolio Optimization request: "${request.content.text}" - ${request.content.inputToken} ${request.content.inputAmount}`,
-    );
-
-    try {
-      // Call AI agent for portfolio optimization
-      const aiData: AIOptimizationDataResponse =
-        await this.agentCommunicationService.requestPortfolioOptimization(
-          request.content,
-        );
-
-      this.logger.log(
-        `✅ AI Portfolio Optimization completed with ${aiData.confidence}% confidence`,
-      );
-
-      return {
-        success: true,
-        data: aiData,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      this.logger.error(
-        `❌ Portfolio optimization failed: ${error.message}`,
-        error.stack,
-      );
-
-      // Return error response
-      return {
-        success: false,
-        data: {
-          allocation: { stablecoins: 0, bluechip: 0, riskAssets: 0 },
-          expectedAPY: 0,
-          protocols: [],
-          confidence: 0,
-          reasoning: `Portfolio optimization failed: ${error.message}`,
-        },
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  @Post('test-ai-agent')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Test AI Agent Connectivity',
-    description: 'Test endpoint to verify AI agent is responding correctly',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'AI agent test completed',
-  })
-  async testAIAgent(): Promise<any> {
-    this.logger.log('🧪 Testing AI agent connectivity...');
-
-    try {
-      // Make the exact curl request to test AI agent
-      const response = await fetch(
-        'http://localhost:3001/api/v1/portfolio-optimization',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            riskTolerance: 'moderate',
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `AI agent responded with status: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const data = await response.json();
-
-      this.logger.log('✅ AI agent test successful');
-
-      return {
-        success: true,
-        message: 'AI agent is responding correctly',
-        aiAgentResponse: data,
-        status: response.status,
-        url: 'http://localhost:3001/api/v1/portfolio-optimization',
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      this.logger.error(`❌ AI agent test failed: ${error.message}`);
-    }
-  }
-
-  @Post('test-yield-analysis-direct')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Test AI Yield Analysis Direct',
-    description:
-      'Test the yield-analysis endpoint directly with fetch (like test-ai-agent)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Direct AI yield analysis test completed',
-  })
-  async testYieldAnalysisDirect(): Promise<any> {
-    this.logger.log('🔍 Testing AI yield analysis endpoint directly...');
-
-    try {
-      // Use fetch directly (same as working test-ai-agent)
-      const response = await fetch(
-        'http://localhost:3001/api/v1/yield-analysis',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            inputTokenAddress: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8',
-            usdAmount: '5000',
-            riskTolerance: 'moderate',
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `AI agent responded with status: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const data = await response.json();
-
-      this.logger.log('✅ Direct AI yield analysis test successful');
-
-      return {
-        success: true,
-        message:
-          'AI yield analysis endpoint is working correctly (direct test)',
-        aiAgentResponse: data,
-        status: response.status,
-        url: 'http://localhost:3001/api/v1/yield-analysis',
-        method: 'fetch (same as working test-ai-agent)',
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      this.logger.error(
-        `❌ Direct AI yield analysis test failed: ${error.message}`,
-      );
-    }
   }
 
   private async validateOptimizationRequest(

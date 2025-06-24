@@ -1,21 +1,25 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { Address } from 'viem';
 import { Web3Service } from '../../../shared/web3/web3.service';
 import { PrivyService } from '../../../shared/privy/privy.service';
 import { ChainlinkDataService } from '../../market-analysis/services/chainlink-data.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class VaultTokenService {
   private readonly logger = new Logger(VaultTokenService.name);
-
-  private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0xFBC065B72f312Ad41676B977E01aBd9cf86CeF1A';
+  private readonly aliothVaultAddress: string;
 
   constructor(
     private web3Service: Web3Service,
     private chainlinkDataService: ChainlinkDataService,
     private privyService: PrivyService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.aliothVaultAddress = this.configService.get<string>(
+      'config.contracts.aliothVault',
+      '',
+    );
+  }
 
   async getTokenPriceUSD(tokenAddress: string): Promise<number> {
     try {
@@ -111,7 +115,7 @@ export class VaultTokenService {
         aliothWallet.privyWalletId,
         aliothWallet.aliothWalletAddress,
         tokenAddress,
-        this.MULTI_ASSET_VAULT_V2_ADDRESS,
+        this.aliothVaultAddress,
         amount,
         chainId,
       );
