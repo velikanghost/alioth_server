@@ -26,10 +26,7 @@ export class VaultService {
     depositDto: DepositDto,
   ): Promise<Transaction> {
     // Get user's Alioth wallet
-    const aliothWallet = await this.getUserAliothWallet(
-      userAddress,
-      depositDto.aliothWalletId,
-    );
+    const aliothWallet = await this.getUserAliothWallet(userAddress);
 
     // Delegate to deposit service
     return this.vaultDepositService.deposit(
@@ -44,10 +41,7 @@ export class VaultService {
     withdrawDto: WithdrawDto,
   ): Promise<Transaction> {
     // Get user's Alioth wallet
-    const aliothWallet = await this.getUserAliothWallet(
-      userAddress,
-      withdrawDto.aliothWalletId,
-    );
+    const aliothWallet = await this.getUserAliothWallet(userAddress);
 
     // Delegate to withdrawal service
     return this.vaultWithdrawalService.withdraw(
@@ -91,10 +85,12 @@ export class VaultService {
     chainId: number,
   ): Promise<string> {
     // Get user's Alioth wallet
-    const aliothWallet = await this.getUserAliothWallet(
-      userAddress,
-      aliothWalletId,
-    );
+    const aliothWallet = await this.getUserAliothWallet(userAddress);
+
+    // Verify that the provided aliothWalletId matches the user's active wallet
+    if (aliothWallet._id.toString() !== aliothWalletId) {
+      throw new Error('Invalid Alioth wallet ID provided');
+    }
 
     return this.vaultTokenService.approveToken(
       userAddress,
@@ -118,10 +114,7 @@ export class VaultService {
     withdrawDto: WithdrawDto,
   ): Promise<any> {
     // Get user's Alioth wallet
-    const aliothWallet = await this.getUserAliothWallet(
-      userAddress,
-      withdrawDto.aliothWalletId,
-    );
+    const aliothWallet = await this.getUserAliothWallet(userAddress);
 
     // Delegate to withdrawal service (need to add this method)
     // For now, return a simple preview
@@ -172,23 +165,23 @@ export class VaultService {
   }
 
   /**
-   * Get user's Alioth wallet by ID and verify ownership
+   * Get user's active Alioth wallet
    */
-  private async getUserAliothWallet(
-    userAddress: string,
-    aliothWalletId: string,
-  ): Promise<any> {
+  private async getUserAliothWallet(userAddress: string): Promise<any> {
     try {
-      // Get the Alioth wallet by ID
-      const aliothWallet =
-        await this.aliothWalletService.getAliothWalletById(aliothWalletId);
+      // Get user's active Alioth wallets
+      const aliothWallets =
+        await this.aliothWalletService.getUserAliothWallets(userAddress);
 
-      // Verify that the wallet belongs to the user
-      if (aliothWallet.userAddress !== userAddress) {
+      if (!aliothWallets || aliothWallets.length === 0) {
         throw new Error(
-          'Unauthorized: Alioth wallet does not belong to this user',
+          'No active Alioth wallet found for this user. Please create one first.',
         );
       }
+
+      // Get the first active wallet or the first wallet if none are active
+      const aliothWallet =
+        aliothWallets.find((w) => w.isActive) || aliothWallets[0];
 
       if (!aliothWallet.isActive) {
         throw new Error('Alioth wallet is inactive');
@@ -197,7 +190,7 @@ export class VaultService {
       return aliothWallet;
     } catch (error) {
       this.logger.error(
-        `Failed to get Alioth wallet ${aliothWalletId} for user ${userAddress}:`,
+        `Failed to get Alioth wallet for user ${userAddress}:`,
         error,
       );
       throw error;

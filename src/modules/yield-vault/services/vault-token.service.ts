@@ -9,7 +9,7 @@ export class VaultTokenService {
   private readonly logger = new Logger(VaultTokenService.name);
 
   private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0x2720d892296aeCde352125444606731639BFfD89';
+    '0xFBC065B72f312Ad41676B977E01aBd9cf86CeF1A';
 
   constructor(
     private web3Service: Web3Service,

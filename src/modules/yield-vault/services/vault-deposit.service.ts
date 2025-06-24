@@ -12,13 +12,15 @@ import { DepositDto } from '../dto/vault.dto';
 import { VaultTokenService } from './vault-token.service';
 import { VaultPortfolioService } from './vault-portfolio.service';
 import { Web3Service } from '../../../shared/web3/web3.service';
+import { TOKEN_ABI } from '../../../utils/abi';
+import { parseUnits } from 'viem';
 
 @Injectable()
 export class VaultDepositService {
   private readonly logger = new Logger(VaultDepositService.name);
 
   private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0x2720d892296aeCde352125444606731639BFfD89';
+    '0xFBC065B72f312Ad41676B977E01aBd9cf86CeF1A';
 
   constructor(
     @InjectModel(Transaction.name)
@@ -44,14 +46,17 @@ export class VaultDepositService {
       // 1. Validate inputs
       await this.validateDeposit(depositDto);
 
-      // 2. Get user's current shares (before deposit)
+      // // 2. Check token allowance and approve if needed
+      // await this.checkAndApproveTokens(userAddress, depositDto, aliothWallet);
+
+      // 3. Get user's current shares (before deposit)
       const sharesBefore = await this.vaultPortfolioService.getUserShares(
-        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
+        aliothWallet.aliothWalletAddress,
         depositDto.tokenAddress,
         depositDto.chainId,
       );
 
-      // 3. Calculate USD value using real Chainlink price and dynamic decimals
+      // 4. Calculate USD value using real Chainlink price and dynamic decimals
       const tokenPriceUSD = await this.vaultTokenService.getTokenPriceUSD(
         depositDto.tokenAddress,
       );
@@ -71,7 +76,7 @@ export class VaultDepositService {
         `💰 Price calculation: ${tokenAmount.toFixed(6)} tokens × $${tokenPriceUSD.toFixed(2)} = $${amountUSD.toFixed(2)} USD`,
       );
 
-      // 4. Create transaction record
+      // 5. Create transaction record
       transaction = new this.transactionModel({
         userAddress,
         chainId: depositDto.chainId,
@@ -96,14 +101,15 @@ export class VaultDepositService {
       await transaction.save();
       this.logger.log(`Created transaction record: ${transaction._id}`);
 
-      // 5. Execute deposit on smart contract
+      // 6. Execute deposit on smart contract
       const executionResult = await this.executeDeposit(
         userAddress,
         depositDto,
         aliothWallet,
+        depositDto.targetProtocol || 'aave', // Use specified protocol or default to aave
       );
 
-      // 6. Wait for transaction confirmation using viem
+      // 7. Wait for transaction confirmation using viem
       this.logger.log(`Transaction submitted: ${executionResult}`);
       const chainName = this.getChainName(depositDto.chainId);
       const publicClient = this.web3Service.getClient(chainName);
@@ -122,9 +128,9 @@ export class VaultDepositService {
         `✅ Transaction confirmed in block ${receipt.blockNumber}`,
       );
 
-      // 7. Get updated shares from contract after confirmation
+      // 8. Get updated shares from contract after confirmation
       const sharesAfter = await this.vaultPortfolioService.getUserShares(
-        aliothWallet.aliothWalletAddress, // Use Alioth wallet address for shares query
+        aliothWallet.aliothWalletAddress,
         depositDto.tokenAddress,
         depositDto.chainId,
       );
@@ -133,7 +139,7 @@ export class VaultDepositService {
         BigInt(sharesAfter) - BigInt(sharesBefore)
       ).toString();
 
-      // 8. Update transaction with confirmed data
+      // 9. Update transaction with confirmed data
       transaction.txHash = executionResult;
       transaction.status = TransactionStatus.CONFIRMED;
       transaction.confirmedAt = new Date();
@@ -191,10 +197,71 @@ export class VaultDepositService {
     // - Check user balance and allowance
   }
 
+  private async checkAndApproveTokens(
+    userAddress: string,
+    depositDto: DepositDto,
+    aliothWallet: any,
+  ): Promise<void> {
+    try {
+      // 1. Get token contract
+      const chainName = this.getChainName(depositDto.chainId);
+      const tokenContract = this.web3Service.createContract(
+        chainName,
+        depositDto.tokenAddress as `0x${string}`,
+        TOKEN_ABI,
+      );
+
+      // 2. Check current allowance
+      const allowance = (await tokenContract.read.allowance([
+        aliothWallet.aliothWalletAddress as `0x${string}`,
+        this.MULTI_ASSET_VAULT_V2_ADDRESS as `0x${string}`,
+      ])) as bigint;
+
+      const depositAmount = BigInt(depositDto.amount);
+
+      // 3. If allowance is insufficient, execute approval
+      if (allowance < depositAmount) {
+        this.logger.log(
+          `Insufficient allowance (${allowance} < ${depositAmount}). Executing approval...`,
+        );
+
+        // Execute approval transaction
+        const txHash = await this.privyService.ensureTokenApproval(
+          aliothWallet.privyWalletId,
+          aliothWallet.aliothWalletAddress,
+          depositDto.tokenAddress,
+          this.MULTI_ASSET_VAULT_V2_ADDRESS,
+          depositDto.amount,
+          depositDto.chainId,
+        );
+
+        // Wait for approval confirmation
+        const chainName = this.getChainName(depositDto.chainId);
+        const publicClient = this.web3Service.getClient(chainName);
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash as `0x${string}`,
+          timeout: 60000, // 60 second timeout
+        });
+
+        if (receipt.status !== 'success') {
+          throw new Error('Token approval failed');
+        }
+
+        this.logger.log(`✅ Token approval confirmed: ${txHash}`);
+      } else {
+        this.logger.log('Token already approved for deposit amount');
+      }
+    } catch (error) {
+      this.logger.error('Failed to check/approve tokens:', error);
+      throw new BadRequestException(`Token approval failed: ${error.message}`);
+    }
+  }
+
   private async executeDeposit(
     userAddress: string,
     depositDto: DepositDto,
     aliothWallet: any,
+    targetProtocol: string = 'aave', // Default protocol if not specified
   ): Promise<string> {
     try {
       // Calculate minimum shares (apply 0.5% slippage protection)
@@ -211,6 +278,7 @@ export class VaultDepositService {
         depositDto.amount,
         minShares.toString(),
         depositDto.chainId,
+        targetProtocol, // Pass the target protocol
       );
 
       this.logger.log(`✅ Privy vault deposit transaction executed: ${txHash}`);

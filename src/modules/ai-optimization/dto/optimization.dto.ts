@@ -118,12 +118,7 @@ export class AIOptimizationResponseDto {
   timestamp: string;
 }
 
-// Existing DTOs for backwards compatibility
 export class OptimizeDepositDto {
-  @ApiProperty({ description: 'User wallet address for contract execution' })
-  @IsString()
-  userAddress: string;
-
   @ApiProperty({
     description:
       'Input token contract address (e.g., 0x0000000000000000000000000000000000000000)',
@@ -140,7 +135,14 @@ export class OptimizeDepositDto {
       'Input amount in wei (e.g., "1000000000" for 1000 USDC with 6 decimals)',
   })
   @IsString()
-  inputAmount: string;
+  inputTokenAmount: string;
+
+  @ApiProperty({
+    description: 'USD value of the deposit',
+    example: 3000,
+  })
+  @IsNumber()
+  usdAmount: number;
 
   @ApiProperty({
     enum: RiskTolerance,
@@ -261,6 +263,13 @@ export interface AIYieldAnalysisRequest {
 // New Direct Deposit DTOs for AI Agent Integration
 export class DirectDepositRequestDto {
   @ApiProperty({
+    description: 'Alioth wallet ID to use for the transaction',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @IsString()
+  aliothWalletId: string;
+
+  @ApiProperty({
     description: 'Input token contract address',
     example: '0xf8fb3713d459d7c1018bd0a49d19b4c44290ebe5',
   })
@@ -337,6 +346,17 @@ export interface DirectDepositData {
   optimization: DirectDepositOptimization;
   marketAnalysis: DirectDepositMarketAnalysis;
   timestamp: string;
+  vaultExecutions?: VaultExecutionResult[];
+}
+
+export interface VaultExecutionResult {
+  protocol: string;
+  amount: string;
+  txHash: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  shares?: string;
+  gasUsed?: number;
+  error?: string;
 }
 
 export class DirectDepositResponseDto {

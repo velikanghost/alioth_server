@@ -26,6 +26,7 @@ import {
 // Shared modules
 import { Web3Module } from '../../shared/web3/web3.module';
 import { MarketAnalysisModule } from '../market-analysis/market-analysis.module';
+import { YieldVaultModule } from '../yield-vault/yield-vault.module';
 import { SharedModule } from '../../shared/shared.module';
 
 @Module({
@@ -47,6 +48,7 @@ import { SharedModule } from '../../shared/shared.module';
 
     // External modules for dependencies
     MarketAnalysisModule, // For Chainlink data service
+    YieldVaultModule, // For vault deposit and wallet services
   ],
 
   controllers: [AIOptimizationController],

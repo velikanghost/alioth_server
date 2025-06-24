@@ -12,7 +12,7 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     type: 'constructor',
     inputs: [
       {
-        name: '_yieldOptimizer',
+        name: '_enhancedYieldOptimizer',
         type: 'address',
         internalType: 'address',
       },
@@ -75,6 +75,38 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
   },
   {
     type: 'function',
+    name: 'authorizeAIBackend',
+    inputs: [
+      {
+        name: 'aiBackend',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'authorizedAIBackends',
+    inputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     name: 'deposit',
     inputs: [
       {
@@ -91,6 +123,11 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
         name: 'minShares',
         type: 'uint256',
         internalType: 'uint256',
+      },
+      {
+        name: 'targetProtocol',
+        type: 'string',
+        internalType: 'string',
       },
     ],
     outputs: [
@@ -117,21 +154,16 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
   },
   {
     type: 'function',
-    name: 'emergencyRecoverToken',
-    inputs: [
+    name: 'enhancedYieldOptimizer',
+    inputs: [],
+    outputs: [
       {
-        name: 'token',
+        name: '',
         type: 'address',
-        internalType: 'address',
-      },
-      {
-        name: 'amount',
-        type: 'uint256',
-        internalType: 'uint256',
+        internalType: 'contract IEnhancedYieldOptimizer',
       },
     ],
-    outputs: [],
-    stateMutability: 'nonpayable',
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -148,51 +180,6 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
   },
   {
     type: 'function',
-    name: 'getAllReceiptTokens',
-    inputs: [],
-    outputs: [
-      {
-        name: 'receiptTokens',
-        type: 'address[]',
-        internalType: 'address[]',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getReceiptToken',
-    inputs: [
-      {
-        name: 'token',
-        type: 'address',
-        internalType: 'address',
-      },
-    ],
-    outputs: [
-      {
-        name: 'receiptToken',
-        type: 'address',
-        internalType: 'address',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getSupportedTokenCount',
-    inputs: [],
-    outputs: [
-      {
-        name: 'count',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     name: 'getSupportedTokens',
     inputs: [],
     outputs: [
@@ -200,47 +187,6 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
         name: 'tokens',
         type: 'address[]',
         internalType: 'address[]',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getTokenAllocation',
-    inputs: [
-      {
-        name: 'token',
-        type: 'address',
-        internalType: 'address',
-      },
-    ],
-    outputs: [
-      {
-        name: 'allocations',
-        type: 'tuple[]',
-        internalType: 'struct IYieldOptimizer.AllocationTarget[]',
-        components: [
-          {
-            name: 'protocolAdapter',
-            type: 'address',
-            internalType: 'address',
-          },
-          {
-            name: 'targetPercentage',
-            type: 'uint256',
-            internalType: 'uint256',
-          },
-          {
-            name: 'currentAllocation',
-            type: 'uint256',
-            internalType: 'uint256',
-          },
-          {
-            name: 'currentAPY',
-            type: 'uint256',
-            internalType: 'uint256',
-          },
-        ],
       },
     ],
     stateMutability: 'view',
@@ -263,11 +209,6 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
       },
       {
         name: 'totalValue',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-      {
-        name: 'apy',
         type: 'uint256',
         internalType: 'uint256',
       },
@@ -315,84 +256,8 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
         type: 'string[]',
         internalType: 'string[]',
       },
-      {
-        name: 'apys',
-        type: 'uint256[]',
-        internalType: 'uint256[]',
-      },
     ],
     stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getUserPosition',
-    inputs: [
-      {
-        name: 'user',
-        type: 'address',
-        internalType: 'address',
-      },
-      {
-        name: 'token',
-        type: 'address',
-        internalType: 'address',
-      },
-    ],
-    outputs: [
-      {
-        name: 'shares',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-      {
-        name: 'value',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-      {
-        name: 'apy',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-      {
-        name: 'receiptTokenAddress',
-        type: 'address',
-        internalType: 'address',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'harvestAllTokens',
-    inputs: [],
-    outputs: [
-      {
-        name: 'totalYields',
-        type: 'uint256[]',
-        internalType: 'uint256[]',
-      },
-    ],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'harvestYield',
-    inputs: [
-      {
-        name: 'token',
-        type: 'address',
-        internalType: 'address',
-      },
-    ],
-    outputs: [
-      {
-        name: 'totalYield',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-    ],
-    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -406,7 +271,7 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     ],
     outputs: [
       {
-        name: 'supported',
+        name: 'isSupported',
         type: 'bool',
         internalType: 'bool',
       },
@@ -509,10 +374,23 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
   },
   {
     type: 'function',
+    name: 'revokeAIBackend',
+    inputs: [
+      {
+        name: 'aiBackend',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'setDepositFee',
     inputs: [
       {
-        name: 'newFee',
+        name: '_depositFee',
         type: 'uint256',
         internalType: 'uint256',
       },
@@ -525,7 +403,7 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     name: 'setFeeRecipient',
     inputs: [
       {
-        name: 'newRecipient',
+        name: '_feeRecipient',
         type: 'address',
         internalType: 'address',
       },
@@ -538,7 +416,7 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     name: 'setWithdrawalFee',
     inputs: [
       {
-        name: 'newFee',
+        name: '_withdrawalFee',
         type: 'uint256',
         internalType: 'uint256',
       },
@@ -634,29 +512,6 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
   },
   {
     type: 'function',
-    name: 'updateTokenLimits',
-    inputs: [
-      {
-        name: 'token',
-        type: 'address',
-        internalType: 'address',
-      },
-      {
-        name: 'minDeposit',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-      {
-        name: 'maxDeposit',
-        type: 'uint256',
-        internalType: 'uint256',
-      },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
     name: 'withdraw',
     inputs: [
       {
@@ -698,17 +553,30 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     stateMutability: 'view',
   },
   {
-    type: 'function',
-    name: 'yieldOptimizer',
-    inputs: [],
-    outputs: [
+    type: 'event',
+    name: 'AIBackendAuthorized',
+    inputs: [
       {
-        name: '',
+        name: 'aiBackend',
         type: 'address',
-        internalType: 'contract IYieldOptimizer',
+        indexed: true,
+        internalType: 'address',
       },
     ],
-    stateMutability: 'view',
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'AIBackendRevoked',
+    inputs: [
+      {
+        name: 'aiBackend',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
   },
   {
     type: 'event',
@@ -827,6 +695,12 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
         internalType: 'uint256',
       },
       {
+        name: 'optimizationId',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
         name: 'timestamp',
         type: 'uint256',
         indexed: false,
@@ -909,25 +783,6 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
       },
       {
         name: 'newFee',
-        type: 'uint256',
-        indexed: false,
-        internalType: 'uint256',
-      },
-    ],
-    anonymous: false,
-  },
-  {
-    type: 'event',
-    name: 'YieldHarvested',
-    inputs: [
-      {
-        name: 'token',
-        type: 'address',
-        indexed: true,
-        internalType: 'address',
-      },
-      {
-        name: 'amount',
         type: 'uint256',
         indexed: false,
         internalType: 'uint256',

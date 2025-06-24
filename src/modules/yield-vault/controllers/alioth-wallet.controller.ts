@@ -256,8 +256,7 @@ export class AliothWalletController {
     @Body() configDto: ChainConfigurationDto,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+      const userAddress = req.user?.walletAddress || '';
 
       this.logger.log(
         `Configuring chain ${configDto.chainId} for wallet ${walletId}`,
@@ -354,8 +353,7 @@ export class AliothWalletController {
     @Param('chainId') chainId: string,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+      const userAddress = req.user?.walletAddress || '';
 
       // Verify ownership
       const aliothWallet =
@@ -400,8 +398,7 @@ export class AliothWalletController {
     @Body() transferDto: AliothTransferDto,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+      const userAddress = req.user?.walletAddress || '';
 
       this.logger.log(
         `Transfer from Alioth wallet: ${transferDto.amount} to ${transferDto.toAddress}`,
@@ -453,8 +450,7 @@ export class AliothWalletController {
     @Body() optimizationDto: AliothOptimizationDto,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
+      const userAddress = req.user?.walletAddress || '';
 
       this.logger.log(
         `Alioth optimization requested for wallet: ${optimizationDto.aliothWalletId}`,

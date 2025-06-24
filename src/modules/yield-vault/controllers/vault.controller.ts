@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   Logger,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -30,6 +31,7 @@ import {
   APRSnapshotResponseDto,
   VaultPerformanceResponseDto,
   TransactionResponseDto,
+  AIOptimizedDepositDto,
 } from '../dto/vault.dto';
 import { ApiResponseDto } from '../../../common/dto/response.dto';
 
@@ -59,18 +61,13 @@ export class VaultController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async deposit(
-    @Request() req: any,
     @Body() depositDto: DepositDto,
   ): Promise<ApiResponseDto<TransactionResponseDto>> {
     this.logger.log(`Deposit request: ${JSON.stringify(depositDto)}`);
 
     try {
-      // TODO: Get user address from JWT token
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF'; // Mock for now
-
       const transaction = await this.vaultService.deposit(
-        userAddress,
+        depositDto.userAddress,
         depositDto,
       );
 
@@ -117,17 +114,13 @@ export class VaultController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async approve(
-    @Request() req: any,
     @Body() approveDto: ApproveDto,
   ): Promise<ApiResponseDto<{ txHash: string }>> {
     this.logger.log(`Approve request: ${JSON.stringify(approveDto)}`);
 
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
-
       const txHash = await this.vaultService.approveToken(
-        userAddress,
+        approveDto.userAddress,
         approveDto.aliothWalletId,
         approveDto.tokenAddress,
         approveDto.amount,
@@ -155,15 +148,11 @@ export class VaultController {
     description: 'Withdrawal preview',
   })
   async withdrawPreview(
-    @Request() req: any,
     @Body() withdrawDto: WithdrawDto,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
-
       const preview = await this.vaultService.getWithdrawalPreview(
-        userAddress,
+        withdrawDto.userAddress,
         withdrawDto,
       );
 
@@ -185,17 +174,13 @@ export class VaultController {
     type: ApiResponseDto<TransactionResponseDto>,
   })
   async withdraw(
-    @Request() req: any,
     @Body() withdrawDto: WithdrawDto,
   ): Promise<ApiResponseDto<TransactionResponseDto>> {
     this.logger.log(`Withdrawal request: ${JSON.stringify(withdrawDto)}`);
 
     try {
-      const userAddress =
-        req.user?.walletAddress || '0x28738040d191ff30673f546FB6BF997E6cdA6dbF';
-
       const transaction = await this.vaultService.withdraw(
-        userAddress,
+        withdrawDto.userAddress,
         withdrawDto,
       );
 
@@ -773,6 +758,136 @@ export class VaultController {
         error.message,
         'Failed to sync user vault with contract state',
       );
+    }
+  }
+
+  @Post('ai-optimized-deposit')
+  @ApiOperation({
+    summary: 'Execute AI-optimized deposits',
+    description:
+      'Execute multiple vault deposits based on AI optimization recommendations',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'AI-optimized deposits executed successfully',
+    type: ApiResponseDto<{
+      totalDeposits: number;
+      executedDeposits: TransactionResponseDto[];
+      failedDeposits: any[];
+    }>,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async executeAIOptimizedDeposit(
+    @Body(ValidationPipe) optimizedDepositDto: AIOptimizedDepositDto,
+  ): Promise<
+    ApiResponseDto<{
+      totalDeposits: number;
+      executedDeposits: TransactionResponseDto[];
+      failedDeposits: any[];
+    }>
+  > {
+    this.logger.log(
+      `AI-Optimized deposit request: ${optimizedDepositDto.recommendations.length} recommendations for ${optimizedDepositDto.usdAmount} USD`,
+    );
+
+    try {
+      const executedDeposits: TransactionResponseDto[] = [];
+      const failedDeposits: any[] = [];
+
+      // Execute each recommendation as a separate vault deposit
+      for (const recommendation of optimizedDepositDto.recommendations) {
+        try {
+          this.logger.log(
+            `💰 Executing vault deposit: ${recommendation.protocol} - ${recommendation.percentage}% (${recommendation.amount})`,
+          );
+
+          // Calculate amount for this allocation (from AI recommendation)
+          const allocationAmount = recommendation.amount;
+
+          // Calculate minShares (95% of expected shares for slippage protection)
+          const minShares =
+            (BigInt(allocationAmount) * BigInt(95)) / BigInt(100);
+
+          // Create deposit DTO for vault service
+          const depositDto: DepositDto = {
+            userAddress: optimizedDepositDto.userAddress,
+            tokenAddress: optimizedDepositDto.inputTokenAddress,
+            amount: allocationAmount,
+            chainId: 11155111, // Sepolia testnet
+            minShares: minShares.toString(),
+            targetProtocol: recommendation.protocol, // Use protocol from AI recommendation
+          };
+
+          // Execute vault deposit
+          const transaction = await this.vaultService.deposit(
+            optimizedDepositDto.userAddress,
+            depositDto,
+          );
+
+          // Add to executed deposits
+          executedDeposits.push({
+            id: transaction._id.toString(),
+            userAddress: transaction.userAddress,
+            chainId: transaction.chainId,
+            type: transaction.type,
+            tokenAddress: transaction.tokenAddress,
+            tokenSymbol: transaction.tokenSymbol,
+            amount: transaction.amount,
+            amountUSD: transaction.amountUSD || 0,
+            txHash: transaction.txHash || '',
+            status: transaction.status,
+            timestamp: transaction.timestamp,
+            confirmedAt: transaction.confirmedAt || new Date(),
+            gasUsed: transaction.gasUsed || 0,
+            shares: transaction.shares || {
+              sharesBefore: '0',
+              sharesAfter: '0',
+              sharesDelta: '0',
+            },
+            // Add AI-specific metadata
+            aiMetadata: {
+              protocol: recommendation.protocol,
+              expectedAPY: recommendation.expectedAPY,
+              riskScore: recommendation.riskScore,
+              percentage: recommendation.percentage,
+            },
+          });
+
+          this.logger.log(
+            `✅ Vault deposit executed: ${recommendation.protocol} - TX: ${transaction.txHash}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Vault deposit failed for ${recommendation.protocol}: ${error.message}`,
+          );
+
+          // Track failed execution
+          failedDeposits.push({
+            protocol: recommendation.protocol,
+            amount: recommendation.amount,
+            percentage: recommendation.percentage,
+            error: error.message,
+            timestamp: new Date(),
+          });
+        }
+      }
+
+      this.logger.log(
+        `✅ AI-optimized deposit completed: ${executedDeposits.length} successful, ${failedDeposits.length} failed`,
+      );
+
+      return ApiResponseDto.success(
+        {
+          totalDeposits: optimizedDepositDto.recommendations.length,
+          executedDeposits,
+          failedDeposits,
+        },
+        `AI-optimized deposit completed: ${executedDeposits.length}/${optimizedDepositDto.recommendations.length} successful`,
+      );
+    } catch (error) {
+      this.logger.error('AI-optimized deposit failed:', error);
+      return ApiResponseDto.error(error.message, 'AI-optimized deposit failed');
     }
   }
 }

@@ -20,7 +20,7 @@ export class VaultWithdrawalService {
   private readonly logger = new Logger(VaultWithdrawalService.name);
 
   private readonly MULTI_ASSET_VAULT_V2_ADDRESS =
-    '0x2720d892296aeCde352125444606731639BFfD89';
+    '0xFBC065B72f312Ad41676B977E01aBd9cf86CeF1A';
 
   constructor(
     @InjectModel(Transaction.name)
