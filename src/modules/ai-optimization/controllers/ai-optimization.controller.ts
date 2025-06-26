@@ -30,15 +30,23 @@ import {
   SupportedTokenSymbol,
 } from '../dto/optimization.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('ai-optimization')
 @Controller('ai-optimization')
 export class AIOptimizationController {
   private readonly logger = new Logger(AIOptimizationController.name);
+  private readonly aiAgentEndpoint: string;
 
   constructor(
     private readonly agentCommunicationService: AgentCommunicationService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.aiAgentEndpoint = this.configService.get<string>(
+      'config.aiAgent.endpoint',
+      'http://localhost:3001',
+    );
+  }
 
   @Post('optimize-deposit')
   @HttpCode(HttpStatus.OK)
@@ -87,7 +95,7 @@ export class AIOptimizationController {
       // Step 4: Call AI agent for optimization recommendation
       this.logger.log('🤖 Calling AI agent for optimization recommendation');
       const aiResponse = await fetch(
-        'http://localhost:3001/api/v1/direct-deposit-optimization',
+        `${this.aiAgentEndpoint}/api/v1/direct-deposit-optimization`,
         {
           method: 'POST',
           headers: {

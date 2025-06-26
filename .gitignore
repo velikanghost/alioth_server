@@ -79,37 +79,7 @@ docker-compose.override.yml
 *.db
 *.sqlite
 
-# Blockchain
-contracts/artifacts
-contracts/cache
-contracts/deployments 
 
-
-AI_INTEGRATION_BACKEND_README.md
-ALIOTH_SETUP_GUIDE.md
-BACKEND_IMPLEMENTATION_STATUS.md
-DEPLOYMENT_GUIDE.md
-example-ai-integration-config.ts
-improv_be.llms.txt
-improv_be.md
-improv_sol.llms.txt
-llms.txt
-MULTI_ASSET_VAULT_README.md
 notes.txt
-portfolio_calc.md
 steps_to_test.txt
-yield-vault-todo.txt
-prev.json
-AI_AGENT_IMPLEMENTATION.md
-test-chat-interactive.js
-test-websocket-chat.js
-CHAINLINK_IMPLEMENTATION.md
-
-DEPLOYMENT_GUIDE.txt
-llms.txt
-IMPLEMENTATION_ROADMAP.md
-BACKEND_INTEGRATION_GUIDE.md
-backend_focus.txt
-current_state.txt
 agent_res.json
-todo.md
