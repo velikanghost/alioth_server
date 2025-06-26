@@ -43,7 +43,7 @@ export default registerAs('config', () => ({
     timeout: parseInt(process.env.AI_AGENT_TIMEOUT || '30000', 10),
   },
   contracts: {
-    enhancedYieldOptimizer: process.env.ENHANCED_YIELD_OPTIMIZER_ADDRESS,
+    enhancedYieldOptimizer: process.env.ALIOTH_YIELD_OPTIMIZER_ADDRESS,
     chainlinkFeedManager: process.env.CHAINLINK_FEED_MANAGER_ADDRESS,
     chainlinkAutomationRegistry: process.env.CHAINLINK_AUTOMATION_REGISTRY,
     aliothVault: process.env.ALIOTH_VAULT_ADDRESS,

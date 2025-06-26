@@ -378,6 +378,7 @@ export const SUPPORTED_TOKENS = {
   AAVE: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a', // Sepolia AAVE
   GHO: '0xc4bF5CbDaBE595361438F8c6a187bDc330539c60', // Sepolia GHO
   EURS: '0x6d906e526a4e2Ca02097BA9d0caA3c382F52278E', // Sepolia EURS
+  USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', // Sepolia USDC
 } as const;
 
 export type SupportedTokenSymbol = keyof typeof SUPPORTED_TOKENS;

@@ -154,6 +154,14 @@ export class ChainlinkPriceFeedService {
         heartbeat: 3600, // 1 hour
         threshold: 1.0, // 1%
       },
+      USDC: {
+        address: '0x7CAB6bb25134a1b13c36017F5971cC9EeECf7221' as Address,
+        decimals: 6,
+        description: 'USDC / USD',
+        symbol: 'USDC',
+        heartbeat: 3600, // 1 hour
+        threshold: 1.0, // 1%
+      },
     },
     // Base sepolia testnet (Chain ID: 84532) - Testnet addresses from Chainlink docs
     84532: {

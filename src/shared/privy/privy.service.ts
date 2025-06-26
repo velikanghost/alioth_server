@@ -388,16 +388,17 @@ export class PrivyService {
     shares: string,
     minAmount: string,
     chainId: number,
+    targetProtocol: string = 'aave', // Default to aave if not specified
   ): Promise<string> {
     try {
       this.logger.log(
-        `Executing vault withdrawal: ${shares} shares of ${tokenAddress} from vault ${vaultAddress} with wallet ${privyWalletId}`,
+        `Executing vault withdrawal: ${shares} shares of ${tokenAddress} from vault ${vaultAddress} with wallet ${privyWalletId} targeting protocol ${targetProtocol}`,
       );
 
       // Convert chainId to CAIP-2 format - ensure proper type
       const caip2 = `eip155:${chainId}` as const;
 
-      // Encode vault withdrawal function call
+      // Encode vault withdrawal function call with updated signature including targetProtocol
       const withdrawData = encodeFunctionData({
         abi: [
           {
@@ -407,6 +408,7 @@ export class PrivyService {
               { name: 'token', type: 'address' },
               { name: 'shares', type: 'uint256' },
               { name: 'minAmount', type: 'uint256' },
+              { name: 'targetProtocol', type: 'string' },
             ],
             outputs: [{ name: 'amount', type: 'uint256' }],
             stateMutability: 'nonpayable',
@@ -417,6 +419,7 @@ export class PrivyService {
           tokenAddress as `0x${string}`,
           BigInt(shares),
           BigInt(minAmount),
+          targetProtocol,
         ],
       });
 

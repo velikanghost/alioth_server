@@ -111,7 +111,7 @@ export class VaultDepositService {
         userAddress,
         depositDto,
         aliothWallet,
-        depositDto.targetProtocol || 'aave', // Use specified protocol or default to aave
+        this.normalizeProtocol(depositDto.targetProtocol || 'aave'), // Normalize protocol name
       );
 
       // 7. Wait for transaction confirmation using viem
@@ -186,6 +186,18 @@ export class VaultDepositService {
       throw new BadRequestException('Deposit amount must be greater than 0');
     }
 
+    // Check if token is supported by vault
+    const isTokenSupported = await this.vaultPortfolioService.isTokenSupported(
+      depositDto.tokenAddress,
+      depositDto.chainId,
+    );
+
+    if (!isTokenSupported) {
+      throw new BadRequestException(
+        `Token ${depositDto.tokenAddress} is not supported by the vault. Please add it to the vault's supported tokens list first.`,
+      );
+    }
+
     // Check emergency stop
     const isEmergencyStop = await this.vaultPortfolioService.isEmergencyStop(
       depositDto.chainId,
@@ -197,7 +209,6 @@ export class VaultDepositService {
     }
 
     // TODO: Add more validations
-    // - Check token is supported
     // - Check supply caps
     // - Check user balance and allowance
   }
@@ -266,7 +277,7 @@ export class VaultDepositService {
     userAddress: string,
     depositDto: DepositDto,
     aliothWallet: any,
-    targetProtocol: string = 'aave', // Default protocol if not specified
+    targetProtocol: string,
   ): Promise<string> {
     try {
       // Calculate minimum shares (apply 0.5% slippage protection)
@@ -299,6 +310,17 @@ export class VaultDepositService {
       this.logger.error(`Deposit execution failed: ${error.message}`);
       throw new BadRequestException(`Deposit failed: ${error.message}`);
     }
+  }
+
+  private normalizeProtocol(protocol: string): string {
+    // Normalize protocol names to match vault contract expectations
+    const protocolMap: Record<string, string> = {
+      'compound-v3': 'compound',
+      'aave-v3': 'aave',
+      'yearn-v3': 'yearn',
+    };
+
+    return protocolMap[protocol.toLowerCase()] || protocol.toLowerCase();
   }
 
   private getChainName(chainId: number): string {

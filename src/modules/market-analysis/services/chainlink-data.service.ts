@@ -93,12 +93,13 @@ export class ChainlinkDataService {
   private readonly logger = new Logger(ChainlinkDataService.name);
 
   // Chainlink price feed addresses for Sepolia testnet
-  private readonly PRICE_FEEDS = {
-    AAVE: '0x4b531A318B0e44B549F3b2f824721b3D0d51930A',
-    WETH: '0x694AA1769357215DE4FAC081bf1f309aDC325306',
-    WBTC: '0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43',
-    LINK: '0xc59E3633BAAC79493d908e63626716e204A45EdF',
-  };
+  // private readonly PRICE_FEEDS = {
+  //   AAVE: '0x4b531A318B0e44B549F3b2f824721b3D0d51930A',
+  //   WETH: '0x694AA1769357215DE4FAC081bf1f309aDC325306',
+  //   WBTC: '0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43',
+  //   LINK: '0xc59E3633BAAC79493d908e63626716e204A45EdF',
+  //   USDC: '0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E', // USDC/USD feed on Sepolia
+  // };
 
   // DeFi protocol yield sources
   private readonly YIELD_SOURCES = {
@@ -441,6 +442,7 @@ export class ChainlinkDataService {
       WETH: 0.12,
       WBTC: 0.1,
       LINK: 0.18,
+      USDC: 0.02, // USDC is a stablecoin with very low volatility
     };
 
     const symbol = this.getTokenSymbol(token);
@@ -507,6 +509,15 @@ export class ChainlinkDataService {
           lastUpdated: new Date(),
         },
       ],
+      USDC: [
+        {
+          protocol: 'Compound V3',
+          apy: 0.045,
+          tvl: 2000000,
+          riskLevel: 'LOW',
+          lastUpdated: new Date(),
+        },
+      ],
     };
 
     const symbol = this.getTokenSymbol(token);
@@ -520,6 +531,7 @@ export class ChainlinkDataService {
       WETH: 50000000,
       WBTC: 25000000,
       LINK: 8000000,
+      USDC: 30000000, // USDC typically has high liquidity
     };
 
     const symbol = this.getTokenSymbol(token);
@@ -609,6 +621,7 @@ export class ChainlinkDataService {
       '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14': 'WETH',
       '0x29f2D40B0605204364af54EC677bD022dA425d03': 'WBTC',
       '0x779877A7B0D9E8603169DdbD7836e478b4624789': 'LINK',
+      '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238': 'USDC', // Sepolia USDC
     };
 
     return symbolMap[token] || token;

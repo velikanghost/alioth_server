@@ -99,6 +99,15 @@ export class WithdrawDto {
   @IsOptional()
   @IsString()
   minAmount?: string;
+
+  @ApiPropertyOptional({
+    description: 'Target protocol for withdrawal optimization',
+    example: 'aave',
+    enum: ['aave', 'compound', 'yearn'],
+  })
+  @IsOptional()
+  @IsString()
+  targetProtocol?: string;
 }
 
 export class ApproveDto {

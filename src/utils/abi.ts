@@ -12,7 +12,7 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     type: 'constructor',
     inputs: [
       {
-        name: '_enhancedYieldOptimizer',
+        name: '_aliothYieldOptimizer',
         type: 'address',
         internalType: 'address',
       },
@@ -72,6 +72,19 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
     ],
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'aliothYieldOptimizer',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'contract IAliothYieldOptimizer',
+      },
+    ],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -148,19 +161,6 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
         name: '',
         type: 'uint256',
         internalType: 'uint256',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'enhancedYieldOptimizer',
-    inputs: [],
-    outputs: [
-      {
-        name: '',
-        type: 'address',
-        internalType: 'contract IEnhancedYieldOptimizer',
       },
     ],
     stateMutability: 'view',
@@ -512,6 +512,29 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
   },
   {
     type: 'function',
+    name: 'updateTokenLimits',
+    inputs: [
+      {
+        name: 'token',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'newMinDeposit',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'newMaxDeposit',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'withdraw',
     inputs: [
       {
@@ -528,6 +551,11 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
         name: 'minAmount',
         type: 'uint256',
         internalType: 'uint256',
+      },
+      {
+        name: 'targetProtocol',
+        type: 'string',
+        internalType: 'string',
       },
     ],
     outputs: [
@@ -702,6 +730,43 @@ export const MULTI_ASSET_VAULT_V2_ABI = [
       },
       {
         name: 'timestamp',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'TokenLimitsUpdated',
+    inputs: [
+      {
+        name: 'token',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'oldMinDeposit',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'oldMaxDeposit',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'newMinDeposit',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'newMaxDeposit',
         type: 'uint256',
         indexed: false,
         internalType: 'uint256',

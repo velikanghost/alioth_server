@@ -92,6 +92,7 @@ export class VaultTokenService {
       '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14': 'WETH',
       '0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c': 'ETH',
       '0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5': 'LINK',
+      '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238': 'USDC', // Sepolia USDC for Compound
     };
 
     return tokenSymbols[tokenAddress] || 'UNKNOWN';

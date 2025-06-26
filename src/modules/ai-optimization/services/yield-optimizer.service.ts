@@ -401,8 +401,11 @@ export class YieldOptimizerService {
   private mapProtocolToEnum(protocol: string): number {
     const protocolMap: Record<string, number> = {
       aave: 0,
+      'aave-v3': 0,
       compound: 1,
+      'compound-v3': 1,
       yearn: 2,
+      'yearn-v3': 2,
     };
 
     return protocolMap[protocol.toLowerCase()] ?? 0;

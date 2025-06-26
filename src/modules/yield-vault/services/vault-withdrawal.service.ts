@@ -272,6 +272,7 @@ export class VaultWithdrawalService {
         withdrawDto.shares,
         withdrawDto.minAmount || '1',
         withdrawDto.chainId,
+        withdrawDto.targetProtocol || 'aave',
       );
     } catch (error) {
       this.logger.error(`Withdrawal execution failed: ${error.message}`);
