@@ -6,11 +6,11 @@ import { SharedModule } from 'src/shared/shared.module';
 import {
   UserPortfolio,
   UserPortfolioSchema,
-} from '../ai-optimization/schemas/user-portfolio.schema';
+} from '../../shared/schemas/user-portfolio.schema';
 import {
-  AIDecisionLog,
-  AIDecisionLogSchema,
-} from '../ai-optimization/schemas/ai-decision-log.schema';
+  MarketDataCache,
+  MarketDataCacheSchema,
+} from '../../shared/schemas/market-data-cache.schema';
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import {
     SharedModule,
     MongooseModule.forFeature([
       { name: UserPortfolio.name, schema: UserPortfolioSchema },
-      { name: AIDecisionLog.name, schema: AIDecisionLogSchema },
+      { name: MarketDataCache.name, schema: MarketDataCacheSchema },
     ]),
   ],
   providers: [PerformanceTrackingService],

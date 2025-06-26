@@ -14,6 +14,14 @@ import { RiskProfile } from '../schemas/user-vault.schema';
 
 export class DepositDto {
   @ApiProperty({
+    description: 'User wallet address',
+    example: '0x28738040d191ff30673f546FB6BF997E6cdA6dbF',
+  })
+  @IsString()
+  @IsEthereumAddress()
+  userAddress: string;
+
+  @ApiProperty({
     description: 'Token contract address',
     example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
   })
@@ -42,9 +50,26 @@ export class DepositDto {
   @IsOptional()
   @IsString()
   minShares?: string;
+
+  @ApiPropertyOptional({
+    description: 'Target protocol for yield optimization',
+    example: 'aave',
+    enum: ['aave', 'compound', 'yearn'],
+  })
+  @IsOptional()
+  @IsString()
+  targetProtocol?: string;
 }
 
 export class WithdrawDto {
+  @ApiProperty({
+    description: 'User wallet address',
+    example: '0x28738040d191ff30673f546FB6BF997E6cdA6dbF',
+  })
+  @IsString()
+  @IsEthereumAddress()
+  userAddress: string;
+
   @ApiProperty({
     description: 'Token contract address',
     example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
@@ -74,9 +99,33 @@ export class WithdrawDto {
   @IsOptional()
   @IsString()
   minAmount?: string;
+
+  @ApiPropertyOptional({
+    description: 'Target protocol for withdrawal optimization',
+    example: 'aave',
+    enum: ['aave', 'compound', 'yearn'],
+  })
+  @IsOptional()
+  @IsString()
+  targetProtocol?: string;
 }
 
 export class ApproveDto {
+  @ApiProperty({
+    description: 'User wallet address',
+    example: '0x28738040d191ff30673f546FB6BF997E6cdA6dbF',
+  })
+  @IsString()
+  @IsEthereumAddress()
+  userAddress: string;
+
+  @ApiProperty({
+    description: 'Alioth wallet ID to use for the transaction',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @IsString()
+  aliothWalletId: string;
+
   @ApiProperty({
     description: 'Token contract address to approve',
     example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
@@ -86,7 +135,7 @@ export class ApproveDto {
   tokenAddress: string;
 
   @ApiProperty({
-    description: 'Amount to approve for vault spending (in wei)',
+    description: 'Amount to approve (in wei)',
     example: '1000000000000000000',
   })
   @IsString()
@@ -137,6 +186,93 @@ export class UserPreferencesDto {
   @Min(0)
   @Max(50)
   rebalanceThreshold?: number;
+}
+
+export class AIOptimizedDepositRecommendationDto {
+  @ApiProperty({
+    description: 'Protocol name for the recommendation',
+    example: 'aave',
+  })
+  @IsString()
+  protocol: string;
+
+  @ApiProperty({
+    description: 'Percentage allocation for this protocol',
+    example: 40,
+  })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  percentage: number;
+
+  @ApiProperty({
+    description: 'Expected APY for this allocation',
+    example: 4.5,
+  })
+  @IsNumber()
+  expectedAPY: number;
+
+  @ApiProperty({
+    description: 'Risk score for this allocation (1-10)',
+    example: 3,
+  })
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  riskScore: number;
+
+  @ApiProperty({
+    description: 'Amount to deposit for this allocation (in wei)',
+    example: '400000000000000000000',
+  })
+  @IsString()
+  amount: string;
+}
+
+export class AIOptimizedDepositDto {
+  @ApiProperty({
+    description: 'User wallet address',
+    example: '0x28738040d191ff30673f546FB6BF997E6cdA6dbF',
+  })
+  @IsString()
+  @IsEthereumAddress()
+  userAddress: string;
+
+  @ApiProperty({
+    description: 'Input token contract address',
+    example: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a',
+  })
+  @IsString()
+  @IsEthereumAddress()
+  inputTokenAddress: string;
+
+  @ApiProperty({
+    description: 'Input token symbol',
+    example: 'USDC',
+  })
+  @IsString()
+  inputTokenSymbol: string;
+
+  @ApiProperty({
+    description: 'Total input token amount (in wei)',
+    example: '1000000000000000000000',
+  })
+  @IsString()
+  inputTokenAmount: string;
+
+  @ApiProperty({
+    description: 'USD value of the deposit',
+    example: 1000,
+  })
+  @IsNumber()
+  usdAmount: number;
+
+  @ApiProperty({
+    description: 'AI optimization recommendations',
+    type: [AIOptimizedDepositRecommendationDto],
+  })
+  @IsArray()
+  recommendations: AIOptimizedDepositRecommendationDto[];
 }
 
 export class VaultBalanceResponseDto {
@@ -358,5 +494,23 @@ export class TransactionResponseDto {
     sharesBefore: string;
     sharesAfter: string;
     sharesDelta: string;
+  };
+
+  @ApiPropertyOptional({
+    description: 'AI-specific metadata for optimized deposits',
+    type: 'object',
+    properties: {
+      protocol: { type: 'string' },
+      expectedAPY: { type: 'number' },
+      riskScore: { type: 'number' },
+      percentage: { type: 'number' },
+    },
+  })
+  @IsOptional()
+  aiMetadata?: {
+    protocol: string;
+    expectedAPY: number;
+    riskScore: number;
+    percentage: number;
   };
 }

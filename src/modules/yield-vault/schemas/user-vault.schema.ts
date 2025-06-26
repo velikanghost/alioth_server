@@ -43,6 +43,29 @@ export class UserVault {
   @Prop({ required: true, enum: RiskProfile, default: RiskProfile.MODERATE })
   riskProfile: RiskProfile; // User's risk preference
 
+  @Prop({ type: Number, min: 1, max: 10, default: 5 })
+  riskTolerance: number;
+
+  @Prop({
+    type: {
+      enabled: { type: Boolean, default: false },
+      minYieldDifference: { type: Number, default: 0.5 },
+      maxGasCostUSD: { type: Number, default: 50 },
+      frequency: {
+        type: String,
+        enum: ['daily', 'weekly', 'monthly'],
+        default: 'weekly',
+      },
+    },
+    default: {},
+  })
+  autoRebalanceSettings: {
+    enabled: boolean;
+    minYieldDifference: number;
+    maxGasCostUSD: number;
+    frequency: string;
+  };
+
   @Prop({ type: Object })
   preferences?: {
     autoRebalance: boolean;
@@ -54,14 +77,6 @@ export class UserVault {
       harvest: boolean;
       emergencies: boolean;
     };
-  };
-
-  @Prop({ type: Object })
-  agentSettings?: {
-    enabledAgents: string[]; // List of agent IDs
-    agentRiskTolerance: number; // 1-10 scale
-    maxAutomaticAllocation: number; // Max % agent can allocate
-    requireConfirmation: boolean; // Whether to ask user before actions
   };
 
   @Prop({ type: Object })

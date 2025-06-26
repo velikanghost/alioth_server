@@ -1,60 +1,74 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
-import { AIYieldOptimizationService } from './services/ai-yield-optimization.service';
+
+// Controllers
 import { AIOptimizationController } from './controllers/ai-optimization.controller';
+
+// Services
+import { AgentCommunicationService } from './services/agent-communication.service';
+import { YieldOptimizerService } from './services/yield-optimizer.service';
+import { TokenService } from './services/token.service';
+
+// Gateways
+// import { OptimizationGateway } from './gateways/optimization.gateway'; // TODO: Implement when needed
+
+// Schemas
 import {
-  UserPortfolio,
-  UserPortfolioSchema,
-} from './schemas/user-portfolio.schema';
-import { ChainlinkDataService } from '../market-analysis/services/chainlink-data.service';
-import { DEXAggregatorService } from '../swap-execution/services/dex-aggregator.service';
+  OptimizationExecution,
+  OptimizationExecutionSchema,
+} from '../../shared/schemas/optimization-execution.schema';
+import {
+  ChainlinkEvent,
+  ChainlinkEventSchema,
+} from '../../shared/schemas/chainlink-event.schema';
 
-import { PerformanceTrackingService } from '../performance-tracking/services/performance-tracking.service';
-
+// Shared modules
+import { Web3Module } from '../../shared/web3/web3.module';
 import { MarketAnalysisModule } from '../market-analysis/market-analysis.module';
-import { SwapExecutionModule } from '../swap-execution/swap-execution.module';
-import { PerformanceTrackingModule } from '../performance-tracking/performance-tracking.module';
-import { SharedModule } from 'src/shared/shared.module';
-import {
-  AIDecisionLog,
-  AIDecisionLogSchema,
-} from './schemas/ai-decision-log.schema';
-import {
-  MarketDataCache,
-  MarketDataCacheSchema,
-} from './schemas/market-data-cache.schema';
-import { AIAuthorizationService } from './services/ai-authorization.service';
-import { CrossTokenAllocationEngine } from './services/cross-token-allocation-engine.service';
-import { RealtimeMonitoringService } from './services/realtime-monitoring.service';
-import { Web3ContractService } from './services/web3-contract.service';
+import { YieldVaultModule } from '../yield-vault/yield-vault.module';
+import { SharedModule } from '../../shared/shared.module';
 
 @Module({
   imports: [
+    // Configuration
     ConfigModule,
-    SharedModule,
-    MarketAnalysisModule,
-    SwapExecutionModule,
-    PerformanceTrackingModule,
+
+    // HTTP client will be handled by axios in services
+
+    // Database schemas
     MongooseModule.forFeature([
-      { name: UserPortfolio.name, schema: UserPortfolioSchema },
-      { name: AIDecisionLog.name, schema: AIDecisionLogSchema },
-      { name: MarketDataCache.name, schema: MarketDataCacheSchema },
+      { name: OptimizationExecution.name, schema: OptimizationExecutionSchema },
+      { name: ChainlinkEvent.name, schema: ChainlinkEventSchema },
     ]),
+
+    // Shared modules
+    Web3Module,
+    SharedModule,
+
+    // External modules for dependencies
+    MarketAnalysisModule, // For Chainlink data service
+    YieldVaultModule, // For vault deposit and wallet services
   ],
+
   controllers: [AIOptimizationController],
+
   providers: [
-    AIYieldOptimizationService,
-    CrossTokenAllocationEngine,
-    Web3ContractService,
-    AIAuthorizationService,
-    RealtimeMonitoringService,
+    AgentCommunicationService,
+    YieldOptimizerService,
+    TokenService,
+    // OptimizationGateway, // TODO: Implement when websocket is implemented
   ],
+
   exports: [
-    AIYieldOptimizationService,
-    CrossTokenAllocationEngine,
-    Web3ContractService,
-    AIAuthorizationService,
+    AgentCommunicationService,
+    YieldOptimizerService,
+    TokenService,
+    MongooseModule,
   ],
 })
-export class AIOptimizationModule {}
+export class AIOptimizationModule {
+  constructor() {
+    console.log('🤖 AI Optimization Module initialized');
+  }
+}

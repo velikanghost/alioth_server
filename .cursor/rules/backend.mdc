@@ -21,6 +21,7 @@ You are developing the backend for Alioth, an AI-driven cross-chain DeFi platfor
 - Apply validation pipes for all DTOs using class-validator
 - Use guards for authentication and authorization
 - Implement interceptors for request/response transformation
+- Do not simulate codes, we are building a production app
 
 ### Database (MongoDB)
 - Use Mongoose schemas with proper decorators (@Prop, @Schema)
