@@ -8,10 +8,14 @@ import { createClient } from 'redis';
     BullModule.forRootAsync({
       useFactory: async (configService: ConfigService) => ({
         redis: {
-          host: configService.get<string>('config.redis.host'),
-          port: configService.get<number>('config.redis.port'),
+          host: configService.get<string>('config.redis.host') || 'localhost',
+          port: configService.get<number>('config.redis.port') || 6379,
           password:
             configService.get<string>('config.redis.password') || undefined,
+          tls:
+            configService.get<string>('config.redis.tls') === 'true'
+              ? {}
+              : undefined,
         },
         defaultJobOptions: {
           removeOnComplete: 10,
@@ -25,11 +29,16 @@ import { createClient } from 'redis';
     {
       provide: 'REDIS_CLIENT',
       useFactory: async (configService: ConfigService) => {
+        const host =
+          configService.get<string>('config.redis.host') || 'localhost';
+        const port = configService.get<number>('config.redis.port') || 6379;
+        const tlsEnabled =
+          configService.get<string>('config.redis.tls') === 'true';
+
         const client = createClient({
-          socket: {
-            host: configService.get<string>('config.redis.host'),
-            port: configService.get<number>('config.redis.port'),
-          },
+          socket: tlsEnabled
+            ? { host, port, tls: true as const }
+            : { host, port },
           password:
             configService.get<string>('config.redis.password') || undefined,
         });

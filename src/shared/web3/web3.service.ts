@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createPublicClient,
-  createWalletClient,
   http,
   PublicClient,
   WalletClient,
@@ -11,7 +10,6 @@ import {
   Address,
   Chain,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia, avalancheFuji } from 'viem/chains';
 
 export interface ChainConfig {
@@ -52,19 +50,6 @@ export class Web3Service {
       },
     ];
 
-    const privateKey = this.configService.get<string>(
-      'config.blockchain.privateKey',
-    );
-
-    // Add diagnostic logging
-    this.logger.log(
-      `🔑 Private key status: ${privateKey ? 'Present' : 'Missing'}`,
-    );
-
-    this.logger.log(
-      `🔑 Private key starts with 0x: ${privateKey ? privateKey.startsWith('0x') : false}`,
-    );
-
     chainConfigs.forEach((config) => {
       if (config.rpcUrl) {
         const chainConfig: ChainConfig = {
@@ -77,29 +62,6 @@ export class Web3Service {
             transport: http(config.rpcUrl),
           }),
         };
-
-        // Create wallet client if private key is available
-        if (privateKey) {
-          try {
-            const account = privateKeyToAccount(privateKey as `0x${string}`);
-            chainConfig.walletClient = createWalletClient({
-              account,
-              chain: config.chain,
-              transport: http(config.rpcUrl),
-            });
-            this.logger.log(
-              `✅ Initialized ${config.name} wallet client with account: ${account.address}`,
-            );
-          } catch (error) {
-            this.logger.error(
-              `❌ Failed to initialize wallet client for ${config.name}: ${error.message}`,
-            );
-          }
-        } else {
-          this.logger.warn(
-            `⚠️ No private key provided, skipping wallet client for ${config.name}`,
-          );
-        }
 
         this.chains.set(config.name, chainConfig);
         this.logger.log(`📡 Initialized ${config.name} provider`);
