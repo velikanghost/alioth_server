@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrivyClient } from '@privy-io/server-auth';
 import { Web3Service } from '../web3/web3.service';
@@ -32,6 +32,7 @@ export class PrivyService {
 
   constructor(
     private configService: ConfigService,
+    @Inject(forwardRef(() => Web3Service))
     private web3Service: Web3Service,
   ) {
     const appId = this.configService.get<string>('PRIVY_APP_ID');
@@ -165,15 +166,80 @@ export class PrivyService {
           symbol: 'ETH',
         };
       } else {
-        // Get ERC-20 token balance (would need to implement)
-        // For now, return 0 for tokens
-        return {
-          balance: '0',
-          raw: '0',
-          formatted: '0.0',
-          tokenAddress: tokenAddress || 'native',
-          symbol: 'TOKEN',
-        };
+        // Fetch ERC-20 balance using viem
+        const erc20Abi = [
+          {
+            type: 'function',
+            name: 'balanceOf',
+            stateMutability: 'view',
+            inputs: [{ name: 'owner', type: 'address' }],
+            outputs: [{ name: '', type: 'uint256' }],
+          },
+          {
+            type: 'function',
+            name: 'decimals',
+            stateMutability: 'view',
+            inputs: [],
+            outputs: [{ name: '', type: 'uint8' }],
+          },
+          {
+            type: 'function',
+            name: 'symbol',
+            stateMutability: 'view',
+            inputs: [],
+            outputs: [{ name: '', type: 'string' }],
+          },
+        ];
+
+        const tokenContract = this.web3Service.createContract(
+          chainName,
+          tokenAddress as `0x${string}`,
+          erc20Abi,
+        );
+
+        try {
+          const rawBal = (await tokenContract.read.balanceOf([
+            validatedAddress,
+          ])) as bigint;
+
+          let decimals = 18;
+          try {
+            decimals = Number(await tokenContract.read.decimals([]));
+          } catch (_) {
+            this.logger.warn(
+              `decimals() not found on token ${tokenAddress}, defaulting to 6`,
+            );
+            decimals = 6;
+          }
+
+          let symbol = 'TOKEN';
+          try {
+            symbol = String(await tokenContract.read.symbol([]));
+          } catch (_) {
+            // ignore
+          }
+
+          const formatted = (Number(rawBal) / 10 ** decimals).toString();
+
+          return {
+            balance: rawBal.toString(),
+            raw: rawBal.toString(),
+            formatted,
+            tokenAddress,
+            symbol,
+          };
+        } catch (tokenErr) {
+          this.logger.warn(
+            `Unable to fetch token balance for ${tokenAddress} on ${chainName}: ${tokenErr.message}`,
+          );
+          return {
+            balance: '0',
+            raw: '0',
+            formatted: '0.0',
+            tokenAddress,
+            symbol: 'TOKEN',
+          };
+        }
       }
     } catch (error) {
       this.logger.error(
@@ -221,6 +287,7 @@ export class PrivyService {
     tokenAddress: string,
     amount: string,
     chainId: number,
+    data?: `0x${string}`,
   ): Promise<string> {
     try {
       this.logger.log(
@@ -230,17 +297,23 @@ export class PrivyService {
       const caip2 = `eip155:${chainId}` as const;
 
       if (tokenAddress === 'native' || tokenAddress === 'ETH') {
+        const txRequest: any = {
+          to: toAddress as `0x${string}`,
+          value: `0x${BigInt(amount).toString(16)}`,
+          chainId,
+        };
+
+        if (data) {
+          txRequest.data = data;
+        }
+
         const result = await this.privy.walletApi.ethereum.sendTransaction({
           walletId: privyWalletId,
           caip2,
-          transaction: {
-            to: toAddress as `0x${string}`,
-            value: `0x${BigInt(amount).toString(16)}`,
-            chainId,
-          },
+          transaction: txRequest,
         });
 
-        this.logger.log(`💸 ETH transfer executed: ${result.hash}`);
+        this.logger.log(`💸 Native transfer executed: ${result.hash}`);
         return result.hash;
       } else {
         const transferData = encodeFunctionData({
@@ -456,15 +529,29 @@ export class PrivyService {
     chainId: number,
   ): Promise<string> {
     try {
+      let ownerAddress = walletAddress;
+      if (!ownerAddress || !ownerAddress.startsWith('0x')) {
+        try {
+          const wallet = await this.privy.walletApi.getWallet({
+            id: privyWalletId,
+          });
+          ownerAddress = wallet.address;
+        } catch (fetchErr) {
+          this.logger.warn(
+            `Unable to fetch wallet address for ${privyWalletId}: ${fetchErr.message}`,
+          );
+          throw new Error(
+            'Unable to determine owner wallet address for allowance check',
+          );
+        }
+      }
+
       this.logger.log(
         `Checking token approval: ${tokenAddress} for spender ${spenderAddress}`,
       );
 
       const chainName = this.getChainNameFromChainId(chainId);
 
-      // Use the provided wallet address instead of deriving it
-
-      // Check current allowance using Web3Service
       const tokenContract = this.web3Service.createContract(
         chainName,
         tokenAddress as `0x${string}`,
@@ -483,7 +570,7 @@ export class PrivyService {
       );
 
       const currentAllowance = (await tokenContract.read.allowance([
-        walletAddress as `0x${string}`,
+        ownerAddress as `0x${string}`,
         spenderAddress as `0x${string}`,
       ])) as bigint;
 
@@ -491,16 +578,13 @@ export class PrivyService {
         `Current allowance: ${currentAllowance.toString()}, Required: ${amount}`,
       );
 
-      // If allowance is insufficient, execute approval transaction
       if (currentAllowance < BigInt(amount)) {
         this.logger.log(
           `Insufficient allowance, executing approval transaction`,
         );
 
-        // Convert chainId to CAIP-2 format - ensure proper type
         const caip2 = `eip155:${chainId}` as const;
 
-        // Encode approval function call
         const approvalData = encodeFunctionData({
           abi: [
             {
@@ -518,7 +602,6 @@ export class PrivyService {
           args: [spenderAddress as `0x${string}`, BigInt(amount)],
         });
 
-        // Execute approval transaction
         const result = await this.privy.walletApi.ethereum.sendTransaction({
           walletId: privyWalletId,
           caip2,
@@ -533,7 +616,6 @@ export class PrivyService {
           `✅ Token approval transaction executed: ${result.hash}`,
         );
 
-        // Wait for approval transaction to be mined
         await new Promise((resolve) => setTimeout(resolve, 5000));
 
         return result.hash;

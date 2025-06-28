@@ -4,21 +4,19 @@ import { Web3Service } from '../../../shared/web3/web3.service';
 import { AliothWalletService } from './alioth-wallet.service';
 import { MULTI_ASSET_VAULT_V2_ABI } from 'src/utils/abi';
 import { ConfigService } from '@nestjs/config';
+import { ALIOTH_VAULT_ADDRESSES } from '../../../shared/constants/contracts';
 
 @Injectable()
 export class VaultPortfolioService {
   private readonly logger = new Logger(VaultPortfolioService.name);
-  private readonly aliothVaultAddress: string;
+  private readonly aliothVaultAddresses = ALIOTH_VAULT_ADDRESSES;
 
   constructor(
     private web3Service: Web3Service,
     private aliothWalletService: AliothWalletService,
     private configService: ConfigService,
   ) {
-    this.aliothVaultAddress = this.configService.get<string>(
-      'config.contracts.aliothVault',
-      '',
-    );
+    // vault addresses are loaded from constants now
   }
 
   /**
@@ -41,7 +39,7 @@ export class VaultPortfolioService {
       const chainName = this.getChainName(chainId);
       const contract = this.web3Service.createContract(
         chainName,
-        this.aliothVaultAddress as Address,
+        this.aliothVaultAddresses[chainName] as Address,
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
@@ -149,7 +147,7 @@ export class VaultPortfolioService {
       const chainName = this.getChainName(chainId);
       const contract = this.web3Service.createContract(
         chainName,
-        this.aliothVaultAddress as Address,
+        this.aliothVaultAddresses[chainName] as Address,
         MULTI_ASSET_VAULT_V2_ABI,
       );
 
@@ -174,7 +172,7 @@ export class VaultPortfolioService {
         const chainName = this.getChainName(chainId);
         const contract = this.web3Service.createContract(
           chainName,
-          this.aliothVaultAddress as Address,
+          this.aliothVaultAddresses[chainName] as Address,
           MULTI_ASSET_VAULT_V2_ABI,
         );
 
@@ -233,6 +231,7 @@ export class VaultPortfolioService {
   private getChainName(chainId: number): string {
     const chainMap: { [key: number]: string } = {
       11155111: 'sepolia', // Sepolia testnet (matches Web3Service)
+      84532: 'baseSepolia', // Base Sepolia testnet (matches Web3Service)
       43113: 'avalancheFuji', // Avalanche Fuji testnet (matches Web3Service)
     };
 

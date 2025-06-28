@@ -48,6 +48,7 @@ export default registerAs('config', () => ({
     chainlinkFeedManager: process.env.CHAINLINK_FEED_MANAGER_ADDRESS,
     chainlinkAutomationRegistry: process.env.CHAINLINK_AUTOMATION_REGISTRY,
     aliothVault: process.env.ALIOTH_VAULT_ADDRESS,
+    ccipMessenger: process.env.CCIP_MESSENGER_ADDRESS,
   },
   rateLimit: {
     ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),

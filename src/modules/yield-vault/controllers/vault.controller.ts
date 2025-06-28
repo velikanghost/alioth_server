@@ -29,6 +29,9 @@ import {
   APRSnapshotResponseDto,
   VaultPerformanceResponseDto,
   TransactionResponseDto,
+  MultiChainDepositDto,
+  MultiChainDepositResponseDto,
+  AIRecommendationDto,
 } from '../dto/vault.dto';
 import { ApiResponseDto } from '../../../common/dto/response.dto';
 
@@ -47,26 +50,63 @@ export class VaultController {
   @ApiOperation({
     summary: 'Deposit tokens into yield vault',
     description:
-      'Deposit tokens into the yield optimization vault for automatic yield farming',
+      'Deposit tokens into the yield optimization vault for automatic yield farming. Supports multi-chain deposits with AI recommendations.',
   })
   @ApiResponse({
     status: 201,
     description: 'Deposit successful',
-    type: ApiResponseDto<TransactionResponseDto>,
+    type: ApiResponseDto<TransactionResponseDto | MultiChainDepositResponseDto>,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async deposit(
-    @Body() depositDto: DepositDto,
-  ): Promise<ApiResponseDto<TransactionResponseDto>> {
+    @Body() depositDto: MultiChainDepositDto,
+  ): Promise<
+    ApiResponseDto<TransactionResponseDto | MultiChainDepositResponseDto>
+  > {
     this.logger.log(`Deposit request: ${JSON.stringify(depositDto)}`);
 
     try {
-      const transaction = await this.vaultService.deposit(
+      const result = await this.vaultService.deposit(
         depositDto.userAddress,
         depositDto,
+        depositDto.aiRecommendations,
       );
 
+      // Handle multi-chain deposit response
+      if ('transactions' in result) {
+        const multiChainResult = result as any;
+        return ApiResponseDto.success(
+          {
+            transactions: multiChainResult.transactions.map((tx: any) => ({
+              id: tx._id.toString(),
+              userAddress: tx.userAddress,
+              chainId: tx.chainId,
+              type: tx.type,
+              tokenAddress: tx.tokenAddress,
+              tokenSymbol: tx.tokenSymbol,
+              amount: tx.amount,
+              amountUSD: tx.amountUSD || 0,
+              txHash: tx.txHash || '',
+              status: tx.status,
+              timestamp: tx.timestamp,
+              confirmedAt: tx.confirmedAt || new Date(),
+              gasUsed: tx.gasUsed || 0,
+              shares: tx.shares || {
+                sharesBefore: '0',
+                sharesAfter: '0',
+                sharesDelta: '0',
+              },
+            })),
+            crossChainTransfers: multiChainResult.crossChainTransfers,
+            totalDepositedUSD: multiChainResult.totalDepositedUSD,
+          },
+          'Multi-chain deposit completed successfully',
+        );
+      }
+
+      // Handle single-chain deposit response
+      const transaction = result as any;
       return ApiResponseDto.success(
         {
           id: transaction._id.toString(),
