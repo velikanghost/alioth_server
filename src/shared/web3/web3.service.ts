@@ -10,7 +10,7 @@ import {
   Address,
   Chain,
 } from 'viem';
-import { sepolia, avalancheFuji } from 'viem/chains';
+import { sepolia, avalancheFuji, baseSepolia } from 'viem/chains';
 
 export interface ChainConfig {
   name: string;
@@ -41,6 +41,14 @@ export class Web3Service {
         chain: sepolia,
       },
       {
+        name: 'baseSepolia',
+        rpcUrl: this.configService.get<string>(
+          'config.blockchain.baseSepolia.rpcUrl',
+        ),
+        chainId: 84532,
+        chain: baseSepolia,
+      },
+      {
         name: 'avalancheFuji',
         rpcUrl: this.configService.get<string>(
           'config.blockchain.avalancheFuji.rpcUrl',
@@ -60,7 +68,7 @@ export class Web3Service {
           client: createPublicClient({
             chain: config.chain,
             transport: http(config.rpcUrl),
-          }),
+          }) as PublicClient,
         };
 
         this.chains.set(config.name, chainConfig);

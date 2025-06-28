@@ -9,7 +9,9 @@ import {
   IsArray,
   Min,
   Max,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { RiskProfile } from '../schemas/user-vault.schema';
 
 export class DepositDto {
@@ -513,4 +515,135 @@ export class TransactionResponseDto {
     riskScore: number;
     percentage: number;
   };
+}
+
+export class AIRecommendationDto {
+  @ApiProperty({
+    description: 'Target protocol for this allocation',
+    example: 'compound-v3',
+  })
+  @IsString()
+  protocol: string;
+
+  @ApiProperty({
+    description: 'Percentage allocation for this protocol',
+    example: 60,
+  })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  percentage: number;
+
+  @ApiProperty({
+    description: 'Expected APY for this allocation',
+    example: 0.1837140622992,
+  })
+  @IsNumber()
+  expectedAPY: number;
+
+  @ApiProperty({
+    description: 'Risk score for this allocation (1-10)',
+    example: 3,
+  })
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  riskScore: number;
+
+  @ApiProperty({
+    description: 'Total value locked in this protocol',
+    example: 1807378.9641161798,
+  })
+  @IsNumber()
+  tvl: number;
+
+  @ApiProperty({
+    description: 'Target blockchain for this allocation',
+    example: 'sepolia',
+  })
+  @IsString()
+  chain: string;
+
+  @ApiProperty({
+    description: 'Token symbol',
+    example: 'USDC',
+  })
+  @IsString()
+  token: string;
+
+  @ApiProperty({
+    description: 'Amount to allocate (in wei)',
+    example: '600000000',
+  })
+  @IsString()
+  amount: string;
+}
+
+export class MultiChainDepositDto extends DepositDto {
+  @ApiPropertyOptional({
+    description: 'AI recommendations for multi-chain allocation',
+    type: [AIRecommendationDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AIRecommendationDto)
+  aiRecommendations?: AIRecommendationDto[];
+}
+
+export class CrossChainTransferDto {
+  @ApiProperty({
+    description: 'Source chain name',
+    example: 'sepolia',
+  })
+  @IsString()
+  fromChain: string;
+
+  @ApiProperty({
+    description: 'Destination chain name',
+    example: 'baseSepolia',
+  })
+  @IsString()
+  toChain: string;
+
+  @ApiProperty({
+    description: 'Transferred amount',
+    example: '400000000',
+  })
+  @IsString()
+  amount: string;
+
+  @ApiProperty({
+    description: 'CCIP message ID',
+    example: '0x123...',
+  })
+  @IsString()
+  messageId: string;
+
+  @ApiProperty({
+    description: 'Cross-chain transfer transaction hash',
+    example: '0x456...',
+  })
+  @IsString()
+  transactionHash: string;
+}
+
+export class MultiChainDepositResponseDto {
+  @ApiProperty({
+    description: 'All deposit transactions across chains',
+    type: [TransactionResponseDto],
+  })
+  transactions: TransactionResponseDto[];
+
+  @ApiProperty({
+    description: 'Cross-chain transfers executed',
+    type: [CrossChainTransferDto],
+  })
+  crossChainTransfers: CrossChainTransferDto[];
+
+  @ApiProperty({
+    description: 'Total USD value deposited across all chains',
+    example: 1000,
+  })
+  totalDepositedUSD: number;
 }

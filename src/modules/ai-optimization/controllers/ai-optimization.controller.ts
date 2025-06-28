@@ -127,10 +127,6 @@ export class AIOptimizationController {
 
       this.logger.log('✅ AI optimization recommendation received');
 
-      // Step 5: Execute vault deposits for each recommendation
-      this.logger.log(
-        `💰 Executing ${aiData.data.optimization.recommendations.length} vault deposits`,
-      );
       return aiData;
     } catch (error) {
       this.logger.error(

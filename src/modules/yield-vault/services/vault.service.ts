@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DepositDto, WithdrawDto } from '../dto/vault.dto';
+import { DepositDto, WithdrawDto, AIRecommendationDto } from '../dto/vault.dto';
 import { VaultDepositService } from './vault-deposit.service';
 import { VaultWithdrawalService } from './vault-withdrawal.service';
 import { VaultPortfolioService } from './vault-portfolio.service';
@@ -24,15 +24,17 @@ export class VaultService {
   async deposit(
     userAddress: string,
     depositDto: DepositDto,
-  ): Promise<Transaction> {
-    // Get user's Alioth wallet
+    aiRecommendations?: AIRecommendationDto[],
+  ): Promise<Transaction | any> {
+    // Get user's Alioth wallet if not provided
     const aliothWallet = await this.getUserAliothWallet(userAddress);
 
-    // Delegate to deposit service
+    // Delegate to deposit service with AI recommendations
     return this.vaultDepositService.deposit(
       userAddress,
       depositDto,
       aliothWallet,
+      aiRecommendations,
     );
   }
 
