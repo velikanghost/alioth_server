@@ -138,14 +138,6 @@ export class ChainlinkPriceFeedService {
         heartbeat: 3600, // 1 hour
         threshold: 0.5, // 0.5%
       },
-      AAVE: {
-        address: '0x4b531A318B0e44B549F3b2f824721b3D0d51930A' as Address,
-        decimals: 8,
-        description: 'AAVE / USD',
-        symbol: 'AAVE',
-        heartbeat: 3600, // 1 hour
-        threshold: 1.0, // 1%
-      },
       LINK: {
         address: '0xc59E3633BAAC79493d908e63626716e204A45EdF' as Address,
         decimals: 8,
@@ -155,7 +147,7 @@ export class ChainlinkPriceFeedService {
         threshold: 1.0, // 1%
       },
       USDC: {
-        address: '0x7CAB6bb25134a1b13c36017F5971cC9EeECf7221' as Address,
+        address: '0x1aD0B0f24692CddfF368202880f29e99ae38Cec5' as Address,
         decimals: 6,
         description: 'USDC / USD',
         symbol: 'USDC',
@@ -165,32 +157,35 @@ export class ChainlinkPriceFeedService {
     },
     // Base sepolia testnet (Chain ID: 84532) - Testnet addresses from Chainlink docs
     84532: {
+      USDC: {
+        address: '0xbE1fa364a5325FB30f4B8E3ECDc889c59303638A' as Address,
+        decimals: 6,
+        description: 'USDC / USD',
+        symbol: 'USDC',
+        heartbeat: 3600, // 1 hour
+        threshold: 1.0, // 1%
+      },
+    },
+    // Avalanche Fuji Testnet (Chain ID: 43113) - Testnet addresses from Chainlink docs
+    43113: {
       ETH: {
-        address: '0x4200000000000000000000000000000000000006' as Address,
-        decimals: 18,
+        address: '0x8BA1D001466b23F844041112E92a07e99Cb439F6' as Address,
+        decimals: 8,
         description: 'ETH / USD',
         symbol: 'ETH',
         heartbeat: 3600, // 1 hour
         threshold: 0.5, // 0.5%
       },
-      BTC: {
+      USDC: {
         address: '0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43' as Address,
-        decimals: 8,
-        description: 'BTC / USD',
-        symbol: 'BTC',
+        decimals: 6,
+        description: 'USDC / USD',
+        symbol: 'USDC',
         heartbeat: 3600, // 1 hour
         threshold: 0.5, // 0.5%
       },
-      AAVE: {
-        address: '0x4b531A318B0e44B549F3b2f824721b3D0d51930A' as Address,
-        decimals: 8,
-        description: 'AAVE / USD',
-        symbol: 'AAVE',
-        heartbeat: 3600, // 1 hour
-        threshold: 1.0, // 1%
-      },
       LINK: {
-        address: '0xc59E3633BAAC79493d908e63626716e204A45EdF' as Address,
+        address: '0x041867bd08EE0d421c975b1B9129434C6a0a2b1c' as Address,
         decimals: 8,
         description: 'LINK / USD',
         symbol: 'LINK',
@@ -232,6 +227,18 @@ export class ChainlinkPriceFeedService {
         transport: http(this.getRpcUrl(chainId)),
       });
 
+      // Get the actual decimals from the contract
+      const decimalsResult = await client.readContract({
+        address: priceFeed.address,
+        abi: AGGREGATOR_V3_INTERFACE_ABI,
+        functionName: 'decimals',
+      });
+      const actualDecimals = Number(decimalsResult);
+
+      this.logger.log(
+        `📊 ${symbol} feed decimals: ${actualDecimals} (configured: ${priceFeed.decimals})`,
+      );
+
       // Call latestRoundData function
       const result = await client.readContract({
         address: priceFeed.address,
@@ -247,8 +254,8 @@ export class ChainlinkPriceFeedService {
         throw new Error(`Invalid price data: answer is ${answer}`);
       }
 
-      // Convert price from Chainlink format (typically 8 decimals) to number
-      const price = Number(answer) / Math.pow(10, priceFeed.decimals);
+      // Convert price from Chainlink format using actual decimals from contract
+      const price = Number(answer) / Math.pow(10, actualDecimals);
 
       // Validate freshness (ensure price is not stale)
       const now = Math.floor(Date.now() / 1000);
@@ -269,7 +276,7 @@ export class ChainlinkPriceFeedService {
         price,
         timestamp: updatedAtSeconds,
         roundId: Number(roundId),
-        decimals: priceFeed.decimals,
+        decimals: actualDecimals,
         symbol: priceFeed.symbol,
         isStale,
         staleness,
@@ -316,6 +323,18 @@ export class ChainlinkPriceFeedService {
         transport: http(this.getRpcUrl(chainId)),
       });
 
+      // Get the actual decimals from the contract
+      const decimalsResult = await client.readContract({
+        address: priceFeed.address,
+        abi: AGGREGATOR_V3_INTERFACE_ABI,
+        functionName: 'decimals',
+      });
+      const actualDecimals = Number(decimalsResult);
+
+      this.logger.log(
+        `📊 Historical ${symbol} feed decimals: ${actualDecimals} (configured: ${priceFeed.decimals})`,
+      );
+
       // Call getRoundData function for historical data
       const result = await client.readContract({
         address: priceFeed.address,
@@ -331,7 +350,7 @@ export class ChainlinkPriceFeedService {
         throw new Error(`Invalid historical price data: answer is ${answer}`);
       }
 
-      const price = Number(answer) / Math.pow(10, priceFeed.decimals);
+      const price = Number(answer) / Math.pow(10, actualDecimals);
       const now = Math.floor(Date.now() / 1000);
       const updatedAtSeconds = Number(updatedAt);
       const staleness = now - updatedAtSeconds;
@@ -340,7 +359,7 @@ export class ChainlinkPriceFeedService {
         price,
         timestamp: updatedAtSeconds,
         roundId: Number(returnedRoundId),
-        decimals: priceFeed.decimals,
+        decimals: actualDecimals,
         symbol: priceFeed.symbol,
         isStale: false, // Historical data is by definition old
         staleness,
