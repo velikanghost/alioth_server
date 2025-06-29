@@ -46,6 +46,13 @@ export class CreateAliothWalletDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiProperty({
+    description: 'User wallet address',
+    example: '0x742d35Cc6635Cb6C9D1d618d8e5d87a3D19A7AD3',
+  })
+  @IsString()
+  userAddress: string;
 }
 
 export class ChainConfigurationDto {
@@ -186,7 +193,16 @@ export class AliothWalletController {
     @Body() createDto: CreateAliothWalletDto,
   ): Promise<ApiResponseDto<any>> {
     try {
-      const userAddress = req.user?.walletAddress || '';
+      // Use userAddress from DTO until JWT auth is properly implemented
+      const userAddress =
+        createDto.userAddress || req.user?.walletAddress || '';
+
+      if (!userAddress) {
+        return ApiResponseDto.error(
+          'User address is required',
+          'MISSING_USER_ADDRESS',
+        );
+      }
 
       this.logger.log(
         `Creating multi-chain Alioth wallet for user: ${userAddress}`,
