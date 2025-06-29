@@ -2,7 +2,6 @@
 
 ![NestJS](https://img.shields.io/badge/NestJS-Framework-red)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)
-![Chainlink](https://img.shields.io/badge/Chainlink-Hackathon-blue)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Database-green)
 
 > AI-driven cross-chain DeFi yield optimization backend built with NestJS
